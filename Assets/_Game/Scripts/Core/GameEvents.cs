@@ -8,27 +8,25 @@ namespace _Game.Scripts.Core
     public static class GameEvents
     {
         #region Gameplay Events
-        // Yêu cầu đặt khối gạch (Input -> GridManager)
         public static Func<List<CellData>, Vector2Int, bool> RequestPlaceBlock;
-        
-        // Hoàn thành một nước đi (sau khi đã xóa hàng xong)
-        // Param 1: Số hàng đã ăn
-        // Param 2: Vị trí trung tâm vụ nổ (để hiện effect)
-        public static Action<int, Vector3> OnMoveCompleted; 
+
+        // total lines, effect center
+        public static Action<int, Vector3> OnMoveCompleted;
+
+        public static Action OnGameStarted;
+        public static Action OnGamePaused;
+        public static Action OnGameResumed;
+        public static Action OnGameOver;
         #endregion
 
         #region UI & Score Events
-        // Điểm số thay đổi -> Cập nhật UI
-        public static Action<int, int> OnScoreChanged; // (CurrentScore, HighScore)
-        
-        // Combo thay đổi -> Rung camera
-        public static Action<int> OnComboUpdated; // (ComboStreak)
+        public static Action<int, int> OnScoreChanged;
+        public static Action<int> OnComboUpdated;
         #endregion
 
         #region Visual Effects Events
-        // Yêu cầu hiển thị chữ bay (Floating Text)
-        // Params: Nội dung, Vị trí, Màu sắc, Độ to
-        public static Action<string, Vector3, Color, float> OnShowFloatingText; 
+        // text, position, color, scale
+        public static Action<string, Vector3, Color, float> OnShowFloatingText;
         #endregion
     }
 }

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using _Game.Scripts.View;
 using _Game.Scripts.Data;
-using _Game.Scripts.Core;
+using _Game.Scripts.Core.Services;
 using _Game.Scripts.Logic.Placement;
 
 namespace _Game.Scripts.Logic
@@ -19,11 +19,9 @@ namespace _Game.Scripts.Logic
         [Header("Drag Settings")]
         [SerializeField] private float _dragOffsetY = 0.3f;
 
-        [Tooltip("LayerMask để Raycast chỉ bắt vào Block, tránh Grid/UI")]
         [SerializeField] private LayerMask _blockLayer;
 
         [Header("Placement Anchor")]
-        [Tooltip("Nếu có, dùng điểm này làm anchor logic khi preview/place. Nếu null sẽ fallback về transform.position.")]
         [SerializeField] private Transform _anchorPoint;
         #endregion
 
@@ -37,8 +35,6 @@ namespace _Game.Scripts.Logic
 
         private Vector2 _dragAreaMin;
         private Vector2 _dragAreaMax;
-
-        private readonly BlockPlacementService _placementService = new BlockPlacementService();
         #endregion
 
         #region State Variables
@@ -60,7 +56,7 @@ namespace _Game.Scripts.Logic
 
         private void Update()
         {
-            if (GameManager.Instance == null || GameManager.Instance.CurrentState != GameState.Playing)
+            if (GameServices.GameState == null || !GameServices.GameState.IsInputAllowed())
             {
                 if (_isDragging) HandleInputUp();
                 return;
@@ -75,9 +71,9 @@ namespace _Game.Scripts.Logic
         #region Initialization
         private void CalculateDragBounds()
         {
-            if (GridManager.Instance == null) return;
+            if (GameServices.BoardQuery == null) return;
 
-            var boardBounds = GridManager.Instance.GetBoardWorldBounds();
+            var boardBounds = GameServices.BoardQuery.GetBoardWorldBounds();
 
             float minX = Mathf.Min(boardBounds.min.x, _startPosition.x);
             float maxX = Mathf.Max(boardBounds.max.x, _startPosition.x);
@@ -166,6 +162,15 @@ namespace _Game.Scripts.Logic
         }
 
         public List<Vector2Int> GetShapeOffsets() => _shapeOffsets;
+        public int GetOccupiedCellCount()
+        {
+            int count = 0;
+            foreach (var data in _runtimeData)
+            {
+                if (data.isOccupied) count++;
+            }
+            return count;
+        }
         #endregion
 
         #region Input Handling
@@ -197,7 +202,6 @@ namespace _Game.Scripts.Logic
             targetPos.z = -1f;
 
             transform.position = targetPos;
-
             UpdateShadow();
         }
 
@@ -228,33 +232,29 @@ namespace _Game.Scripts.Logic
         {
             return _anchorPoint != null ? _anchorPoint.position : transform.position;
         }
-
-        private GridCoord GetCurrentAnchorCoord()
-        {
-            return GridManager.Instance.GetAnchorCoord(GetAnchorWorldPosition());
-        }
         #endregion
 
         #region Visual & Placement Logic
         private void UpdateShadow()
         {
-            if (GridManager.Instance == null) return;
+            if (GameServices.BoardQuery == null || GameServices.Placement == null) return;
             if (_shapeOffsets == null || _shapeOffsets.Count == 0) return;
 
-            GridCoord anchor = GetCurrentAnchorCoord();
+            GridCoord anchor = GameServices.BoardQuery.GetAnchorCoord(GetAnchorWorldPosition());
 
-            PlacementPreview preview = _placementService.BuildPreview(
+            PlacementPreview preview = GameServices.Placement.BuildPreview(
                 anchor,
                 _shapeOffsets,
-                GridManager.Instance.GetBoardState()
+                GameServices.BoardQuery.GetBoardState()
             );
 
-            GridManager.Instance.ShowGhostPreview(preview);
+            if (GridManager.Instance != null)
+                GridManager.Instance.ShowGhostPreview(preview);
         }
 
         private void CheckAndPlace()
         {
-            if (GridManager.Instance == null)
+            if (GameServices.BoardQuery == null || GameServices.Placement == null)
             {
                 ResetToStartPosition();
                 return;
@@ -266,17 +266,16 @@ namespace _Game.Scripts.Logic
                 return;
             }
 
-            GridCoord anchor = GetCurrentAnchorCoord();
+            GridCoord anchor = GameServices.BoardQuery.GetAnchorCoord(GetAnchorWorldPosition());
 
-            PlacementResult result = _placementService.Evaluate(
+            PlacementResult result = GameServices.Placement.Evaluate(
                 anchor,
                 _shapeOffsets,
-                GridManager.Instance.GetBoardState()
+                GameServices.BoardQuery.GetBoardState()
             );
 
             if (!result.IsValid)
             {
-                Debug.Log("Cannot Place!");
                 ResetToStartPosition();
                 return;
             }
@@ -294,17 +293,17 @@ namespace _Game.Scripts.Logic
                 activeData.Add(_runtimeData[i]);
             }
 
-            bool success = GridManager.Instance.TryPlaceBlock(targetCoords, activeData, _themeColor);
+            bool success = GridManager.Instance != null &&
+                           GridManager.Instance.TryPlaceBlock(targetCoords, activeData, _themeColor);
 
             if (success)
             {
-                Debug.Log("Placed Success!");
+                GameServices.Score?.AddPlacementScore(GetOccupiedCellCount());
                 OnPlaced?.Invoke(this);
                 Destroy(gameObject);
             }
             else
             {
-                Debug.Log("Cannot Place!");
                 ResetToStartPosition();
             }
         }

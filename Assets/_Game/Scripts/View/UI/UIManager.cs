@@ -30,7 +30,6 @@ namespace _Game.Scripts.View.UI
         [SerializeField] private MusicChangeDialog _musicChangeDialog;
         [SerializeField] private AlertDialog _alertDialog;
         
-        // [UPDATE] Đổi từ GameObject sang GuideDialog để quản lý tốt hơn
         [SerializeField] private GuideDialog _dialogGuide; 
 
         #endregion
@@ -64,7 +63,6 @@ namespace _Game.Scripts.View.UI
             EnablePanelContainer();
             if (_settingsDialog) _settingsDialog.gameObject.SetActive(true);
             
-            // Tắt các dialog khác để tránh chồng chéo
             if (_dialogGuide) _dialogGuide.gameObject.SetActive(false);
             if (_musicChangeDialog) _musicChangeDialog.gameObject.SetActive(false);
         }
@@ -74,7 +72,6 @@ namespace _Game.Scripts.View.UI
             EnablePanelContainer();
             if (_dialogGuide) _dialogGuide.gameObject.SetActive(true);
             
-            // Tắt Setting nếu đang mở
             if (_settingsDialog) _settingsDialog.gameObject.SetActive(false);
         }
 
@@ -139,14 +136,12 @@ namespace _Game.Scripts.View.UI
 
         public void OnAlertDialogClosed()
         {
-            // Kiểm tra xem còn Dialog nào khác đang mở không
             bool isAnyOtherDialogActive = 
                 (_settingsDialog && _settingsDialog.gameObject.activeSelf) ||
                 (_dialogGuide && _dialogGuide.gameObject.activeSelf) ||
                 (_musicChangeDialog && _musicChangeDialog.gameObject.activeSelf) ||
                 (_gameOverDialog && _gameOverDialog.gameObject.activeSelf);
 
-            // Nếu không còn ai dùng nền đen -> Tắt đi
             if (!isAnyOtherDialogActive)
             {
                 if (_panelContainer) _panelContainer.SetActive(false);

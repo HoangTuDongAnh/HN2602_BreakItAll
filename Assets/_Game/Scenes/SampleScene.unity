@@ -3276,6 +3276,11 @@ MonoBehaviour:
   _clearLineClip: {fileID: 8300000, guid: a30744640446aa048afcf168aca640c5, type: 3}
   _comboClip: {fileID: 8300000, guid: 3341209e4e640f14b9c7eb10a6848663, type: 3}
   _gameOverClip: {fileID: 8300000, guid: 4480e5ca189d7d54e888cc089791762a, type: 3}
+  _musicEnabled: 1
+  _sfxEnabled: 1
+  _musicVolume: 1
+  _sfxVolume: 1
+  _currentBgmIndex: 0
 --- !u!4 &619871367
 Transform:
   m_ObjectHideFlags: 0
@@ -4785,6 +4790,7 @@ MonoBehaviour:
   _height: 9
   _cellSize: 1
   _spacing: 0.05
+  _clearStepDelay: 0.02
   _cellPrefab: {fileID: 2909009205942144491, guid: 31392c496cb66a447b4d208a2805d7be, type: 3}
   _boardContainer: {fileID: 978464343}
 --- !u!4 &978464343
@@ -5657,6 +5663,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::_Game.Scripts.Core.ScoreManager
   _baseLineScore: 100
   _comboBonusPerStreak: 50
+  _scorePerPlacedCell: 1
 --- !u!4 &1163455572
 Transform:
   m_ObjectHideFlags: 0
@@ -9012,21 +9019,26 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8a206b05a6cc1c948930ae8f09714b88, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::_Game.Scripts.Logic.BlockSpawner
-  _blockPrefab: {fileID: 4765336520241809259, guid: 78a9269b04ef6694cb64dde458b10ed6, type: 3}
-  _cellPrefab: {fileID: 3681283684041819816, guid: 31392c496cb66a447b4d208a2805d7be, type: 3}
   _spawnSlots:
   - {fileID: 2087676359}
   - {fileID: 243017202}
   - {fileID: 573999790}
+  _blockPrefab: {fileID: 4765336520241809259, guid: 78a9269b04ef6694cb64dde458b10ed6, type: 3}
+  _cellPrefab: {fileID: 3681283684041819816, guid: 31392c496cb66a447b4d208a2805d7be, type: 3}
   _spawnStrategy: {fileID: 11400000, guid: 790062ffeeddc0342af6d7a06c772329, type: 2}
   _blockPalette:
-  - {r: 0.9647059, g: 0.1882353, b: 0.28627452, a: 1}
-  - {r: 0.98039216, g: 0.5058824, b: 0.07058824, a: 1}
-  - {r: 1, g: 0.9372549, b: 0.37254903, a: 1}
-  - {r: 0.03137255, g: 0.79607844, b: 0, a: 1}
-  - {r: 0, g: 0.96862745, b: 1, a: 1}
-  - {r: 0.05490196, g: 0.12941177, b: 0.627451, a: 1}
-  - {r: 0.6, g: 0.16078432, b: 0.91764706, a: 1}
+  - {r: 1, g: 0.35686275, b: 0.35686275, a: 0}
+  - {r: 1, g: 0.54901963, b: 0, a: 0}
+  - {r: 1, g: 0.87058824, b: 0.25882354, a: 0}
+  - {r: 0.5686275, g: 0.8156863, b: 0.42352942, a: 0}
+  - {r: 0.26666668, g: 0.6745098, b: 1, a: 0}
+  - {r: 0.6, g: 0.16078432, b: 0.91764706, a: 0}
+  - {r: 0.99607843, g: 0.5058824, b: 0.83137256, a: 0}
+  _runtimeConfig:
+    _spawnDelay: 0.5
+    _batchSize: 3
+    _boomChance: 0
+    _toolChance: 0
 --- !u!4 &1964256719
 Transform:
   m_ObjectHideFlags: 0
@@ -9422,6 +9434,8 @@ GameObject:
   m_Component:
   - component: {fileID: 2064865177}
   - component: {fileID: 2064865176}
+  - component: {fileID: 2064865178}
+  - component: {fileID: 2064865179}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -9457,6 +9471,37 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2064865178
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2064865175}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: df03e6ae5b5140528d9c7d2e35488a95, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::_Game.Scripts.Core.GameBootstrap
+--- !u!114 &2064865179
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2064865175}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2d9e102c31174b238e5bca3dfd7eabbb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::_Game.Scripts.Core.GameBalanceConfig
+  _baseLineScore: 100
+  _comboBonusPerStreak: 50
+  _placementScorePerCell: 0
+  _spawnDelay: 0.5
+  _spawnBatchSize: 3
+  _boomChance: 0
+  _toolChance: 0
 --- !u!1 &2087676358
 GameObject:
   m_ObjectHideFlags: 0

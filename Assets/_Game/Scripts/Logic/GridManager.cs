@@ -4,12 +4,13 @@ using UnityEngine;
 using _Game.Scripts.View;
 using _Game.Scripts.Data;
 using _Game.Scripts.Core;
+using _Game.Scripts.Core.Services;
 using _Game.Scripts.Logic.Placement;
 using _Game.Scripts.Logic.Resolve;
 
 namespace _Game.Scripts.Logic
 {
-    public class GridManager : MonoBehaviour
+    public class GridManager : MonoBehaviour, IBoardQueryService
     {
         #region Singleton
         public static GridManager Instance { get; private set; }
@@ -26,7 +27,19 @@ namespace _Game.Scripts.Logic
             _lineClearDetector = new LineClearDetector();
             _boardResolver = new BoardResolver(_lineClearDetector, _clearStepDelay);
 
+            GameServices.RegisterBoardQuery(this);
+            GameServices.RegisterPlacement(_placementService);
+
             GenerateGrid();
+        }
+
+        private void OnDestroy()
+        {
+            if (GameServices.BoardQuery == this)
+                GameServices.RegisterBoardQuery(null);
+
+            if (ReferenceEquals(GameServices.Placement, _placementService))
+                GameServices.RegisterPlacement(null);
         }
         #endregion
 
@@ -177,8 +190,6 @@ namespace _Game.Scripts.Logic
         {
             _isProcessing = true;
 
-            // Quan trọng: đợi 1 frame để BlockController -> OnPlaced
-            // và BlockSpawner kịp remove block vừa đặt khỏi _activeBlocks
             yield return null;
 
             yield return StartCoroutine(_boardResolver.Resolve(
@@ -229,20 +240,6 @@ namespace _Game.Scripts.Logic
             }
         }
 
-        public void ShowGhostAt(List<Vector2Int> targetCoords)
-        {
-            ClearGhost();
-            if (targetCoords == null || !CanPlaceAt(targetCoords)) return;
-
-            foreach (Vector2Int coord in targetCoords)
-            {
-                if (!IsValidCoordinate(coord.x, coord.y)) continue;
-
-                _gridViews[coord.x, coord.y].ShowShadowState();
-                _currentShadowCells.Add(coord);
-            }
-        }
-
         public void ClearGhost()
         {
             foreach (Vector2Int coord in _currentShadowCells)
@@ -252,20 +249,6 @@ namespace _Game.Scripts.Logic
             }
 
             _currentShadowCells.Clear();
-        }
-
-        private bool CanPlaceAt(List<Vector2Int> coords)
-        {
-            HashSet<Vector2Int> uniqueCheck = new HashSet<Vector2Int>(coords);
-            if (uniqueCheck.Count != coords.Count) return false;
-
-            foreach (Vector2Int coord in coords)
-            {
-                if (!IsValidCoordinate(coord.x, coord.y)) return false;
-                if (_gridData[coord.x, coord.y].IsOccupied) return false;
-            }
-
-            return true;
         }
         #endregion
 

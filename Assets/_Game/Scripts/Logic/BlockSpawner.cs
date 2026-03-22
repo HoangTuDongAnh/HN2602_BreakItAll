@@ -1,223 +1,353 @@
 using System.Collections;
 using System.Collections.Generic;
-using _Game.Scripts.Core;
 using UnityEngine;
 using _Game.Scripts.Data;
+using _Game.Scripts.Core;
+using _Game.Scripts.Core.Services;
+using _Game.Scripts.Logic.Spawn;
 
 namespace _Game.Scripts.Logic
 {
     public class BlockSpawner : MonoBehaviour
     {
-        #region Settings & References
-        [Header("References")]
-        [Tooltip("Prefab gốc của khối gạch (Container)")]
-        [SerializeField] private GameObject _blockPrefab; 
-        
-        [Tooltip("Prefab ô vuông nhỏ (Visual Cell)")]
-        [SerializeField] private GameObject _cellPrefab; 
-        
-        [Tooltip("Danh sách 3 vị trí sinh khối trên UI")]
-        [SerializeField] private Transform[] _spawnSlots; 
-
-        [Header("Strategy Configuration")]
-        [Tooltip("ScriptableObject chứa thuật toán sinh khối thông minh")]
-        [SerializeField] private SmartSpawnStrategy _spawnStrategy; 
-        
-        [Header("Visual Config")]
-        [Tooltip("Bảng màu ngẫu nhiên cho các khối")]
-        [SerializeField] private List<Color> _blockPalette; 
-        #endregion
-        
-        #region Singleton & State
+        #region Singleton
         public static BlockSpawner Instance { get; private set; }
 
-        // Danh sách các khối đang hiện hữu trên tay người chơi
-        private List<BlockController> _activeBlocks = new List<BlockController>();
-        public bool IsGameOver { get; private set; } = false;
+        private void Awake()
+        {
+            if (Instance == null) Instance = this;
+            else
+            {
+                Destroy(gameObject);
+                return;
+            }
 
-        // Cờ đánh dấu đang trong quá trình sinh khối (tránh gọi trùng lặp)
-        private bool _isSpawning = false;
+            _colorSelector = new BlockColorSelector(_blockPalette);
+        }
         #endregion
 
-        #region Unity Lifecycle
-        private void Awake() 
-        { 
-            if (Instance == null) Instance = this; 
+        #region Config
+        [Header("References")]
+        [SerializeField] private Transform[] _spawnSlots;
+        [SerializeField] private GameObject _blockPrefab;
+        [SerializeField] private GameObject _cellPrefab;
+        [SerializeField] private SmartSpawnStrategy _spawnStrategy;
+
+        [Header("Legacy Theme Palette")]
+        [SerializeField] private List<Color> _blockPalette = new List<Color>();
+
+        [Header("Runtime Settings")]
+        [SerializeField] private SpawnRuntimeConfig _runtimeConfig = new SpawnRuntimeConfig();
+        #endregion
+
+        #region Runtime
+        private readonly List<BlockController> _activeBlocks = new List<BlockController>();
+        private BlockColorSelector _colorSelector;
+
+        private bool _isSpawning;
+        private Coroutine _gameOverValidationRoutine;
+
+        public bool IsGameOver { get; private set; }
+        #endregion
+
+        #region Lifecycle
+        private void Start()
+        {
+            GameEvents.OnMoveCompleted += HandleMoveCompleted;
         }
 
-        // Đăng ký sự kiện: Chỉ xử lý tiếp theo sau khi bàn cờ đã hoàn tất việc ăn hàng
-        private void OnEnable() => GameEvents.OnMoveCompleted += HandleMoveCompleted;
-        private void OnDisable() => GameEvents.OnMoveCompleted -= HandleMoveCompleted;
+        private void OnDestroy()
+        {
+            GameEvents.OnMoveCompleted -= HandleMoveCompleted;
+        }
         #endregion
 
         #region Public API
-        // Reset game về trạng thái ban đầu
+        public void SpawnInitialBatch()
+        {
+            ClearActiveBlocks();
+            StartCoroutine(SpawnNextBatchRoutine());
+        }
+
         public void ResetSpawner()
         {
             IsGameOver = false;
-            _isSpawning = false;
-            
-            // Xóa sạch các khối cũ
-            foreach (var block in _activeBlocks)
-            {
-                if (block != null) Destroy(block.gameObject);
-            }
-            _activeBlocks.Clear();
-
-            SpawnBatch();
+            ClearActiveBlocks();
+            StartCoroutine(SpawnNextBatchRoutine());
         }
 
-        // Kiểm tra an toàn: Gọi từ GameManager khi Resume game
+        public void ClearSpawner()
+        {
+            IsGameOver = false;
+            _isSpawning = false;
+
+            if (_gameOverValidationRoutine != null)
+            {
+                StopCoroutine(_gameOverValidationRoutine);
+                _gameOverValidationRoutine = null;
+            }
+
+            ClearActiveBlocks();
+        }
+
         public void CheckAndSpawnIfNeeded()
         {
             if (IsGameOver) return;
             if (_isSpawning) return;
 
-            // Loại bỏ các reference null nếu có
-            _activeBlocks.RemoveAll(b => b == null);
+            PurgeNullBlocks();
 
             if (_activeBlocks.Count == 0)
             {
-                SpawnBatch();
+                StartCoroutine(SpawnNextBatchRoutine());
+                return;
             }
+
+            ScheduleGameOverValidation();
         }
         #endregion
 
-        #region Spawning Logic
-        // Sinh một đợt khối mới (thường là 3 khối)
-        public void SpawnBatch()
-        {
-            _isSpawning = true;
-            _activeBlocks.Clear();
-            
-            if (_spawnStrategy == null) 
-            {
-                _isSpawning = false;
-                Debug.LogError("Missing Spawn Strategy!"); 
-                return; 
-            }
-
-            // 1. Lấy danh sách khối cần sinh từ thuật toán
-            float currentFillRate = GridManager.Instance.GetFillRate();
-            List<SpawnRequest> batchRequests = _spawnStrategy.GetNextBatch(_spawnSlots.Length, currentFillRate);
-
-            // 2. Cơ chế cứu hộ: Nếu toàn khối khó, thay khối cuối bằng khối dễ
-            if (!IsSafeBatch(batchRequests))
-            {
-                BlockData rescueBlock = _spawnStrategy.GetGuaranteedBlock();
-                if(rescueBlock != null)
-                {
-                    batchRequests[batchRequests.Count - 1] = new SpawnRequest { ShapeData = rescueBlock, RotationIndex = 0 };
-                }
-            }
-
-            // 3. Thực hiện sinh khối tại các slot
-            for (int i = 0; i < _spawnSlots.Length; i++)
-            {
-                if (i >= batchRequests.Count) break;
-                SpawnSingleBlock(i, batchRequests[i]);
-            }
-            
-            _isSpawning = false;
-            
-            // Kiểm tra ngay lập tức xem vừa sinh ra đã chết chưa
-            CheckGameOverCondition(); 
-        }
-
-        private bool IsSafeBatch(List<SpawnRequest> requests)
-        {
-            foreach (var req in requests)
-            {
-                if (req.ShapeData != null && req.ShapeData.tier == BlockTier.Tier1_Easy) return true;
-            }
-            return false;
-        }
-        
-        private void SpawnSingleBlock(int slotIndex, SpawnRequest request)
-        {
-            if (request.ShapeData == null) return;
-
-            // A. Tạo dữ liệu logic (Grid, Mechanic)
-            var result = BlockFactory.CreateBlockInstance(request.ShapeData, request.RotationIndex, 0f, 0f);
-            
-            // B. Instantiate Prefab
-            Transform slotTrans = _spawnSlots[slotIndex];
-            GameObject blockObj = Instantiate(_blockPrefab, slotTrans.position, Quaternion.identity, slotTrans);
-            BlockController ctrl = blockObj.GetComponent<BlockController>();
-            
-            // C. Chọn màu ngẫu nhiên
-            Color randomColor = Color.white;
-            if (_blockPalette != null && _blockPalette.Count > 0)
-            {
-                randomColor = _blockPalette[Random.Range(0, _blockPalette.Count)];
-            }
-
-            // D. Khởi tạo Controller
-            ctrl.Initialize(result.cells, result.width, _cellPrefab, randomColor);
-            ctrl.OnPlaced += OnBlockPlaced;
-
-            _activeBlocks.Add(ctrl);
-        }
-        #endregion
-
-        #region Game Flow Logic
-        
-        // Callback khi một khối được đặt thành công
-        private void OnBlockPlaced(BlockController placedBlock)
-        {
-            // Chỉ xóa khỏi danh sách quản lý.
-            // KHÔNG gọi spawn hay check game over ở đây để tránh xung đột với GridManager.
-            _activeBlocks.Remove(placedBlock);
-        }
-
-        // Sự kiện nhận từ GridManager SAU KHI đã xử lý xong bàn cờ (ăn hàng, xóa hiệu ứng...)
-        private void HandleMoveCompleted(int linesCleared, Vector3 pos)
+        #region Spawn Flow
+        private void HandleMoveCompleted(int totalLines, Vector3 effectCenter)
         {
             if (IsGameOver) return;
+            if (_isSpawning) return;
 
-            // Nếu hết gạch -> Sinh tiếp
-            if (_activeBlocks.Count == 0) 
+            PurgeNullBlocks();
+
+            if (_activeBlocks.Count == 0)
             {
-                _isSpawning = true;
                 StartCoroutine(SpawnNextBatchRoutine());
+                return;
             }
-            // Nếu còn gạch -> Kiểm tra xem gạch còn lại có đặt được không
-            else 
-            {
-                CheckGameOverCondition();
-            }
+
+            ScheduleGameOverValidation();
         }
 
         private IEnumerator SpawnNextBatchRoutine()
         {
-            yield return new WaitForSeconds(0.5f); // Delay nhỏ tạo cảm giác mượt mà
+            _isSpawning = true;
+
+            float delay = GetSpawnDelay();
+            if (delay > 0f)
+                yield return new WaitForSeconds(delay);
+
             SpawnBatch();
+
+            _isSpawning = false;
+
+            ScheduleGameOverValidation();
         }
 
-        private void CheckGameOverCondition()
+        private void SpawnBatch()
         {
-            if (_activeBlocks.Count == 0) return;
-
-            bool canMakeMove = false;
-            // Duyệt qua tất cả các khối còn lại trên tay
-            foreach (var block in _activeBlocks)
+            if (_spawnSlots == null || _spawnSlots.Length == 0)
             {
-                // Hỏi GridManager xem khối này có đặt được vào đâu không
-                if (GridManager.Instance.CanPlaceBlockAnywhere(block.GetShapeOffsets()))
-                {
-                    canMakeMove = true;
-                    break;
-                }
+                Debug.LogError("BlockSpawner: Missing spawn slots!");
+                return;
             }
 
-            if (!canMakeMove) TriggerGameOver();
+            if (_spawnStrategy == null)
+            {
+                Debug.LogError("BlockSpawner: Missing spawn strategy!");
+                return;
+            }
+
+            int targetCount = Mathf.Min(GetSpawnBatchSize(), _spawnSlots.Length);
+
+            float fillRate = GridManager.Instance != null ? GridManager.Instance.GetFillRate() : 0f;
+            List<SpawnRequest> batch = _spawnStrategy.GetNextBatch(targetCount, fillRate);
+
+            if (batch == null || batch.Count == 0)
+            {
+                Debug.LogError("BlockSpawner: Spawn strategy returned empty batch!");
+                return;
+            }
+
+            for (int i = 0; i < targetCount && i < batch.Count; i++)
+            {
+                SpawnRequest request = batch[i];
+                Transform slot = _spawnSlots[i];
+
+                if (request.ShapeData == null || slot == null) continue;
+
+                SpawnSingleBlock(slot, request);
+            }
+        }
+
+        private void SpawnSingleBlock(Transform slot, SpawnRequest request)
+        {
+            BlockFactory.RuntimeBlockResult runtimeBlock =
+                BlockFactory.CreateBlockInstance(
+                    request.ShapeData,
+                    request.RotationIndex,
+                    GetBoomChance(),
+                    GetToolChance()
+                );
+
+            Transform parentContainer = slot.parent != null ? slot.parent : slot;
+
+            GameObject blockObj = Instantiate(_blockPrefab, slot.position, Quaternion.identity, parentContainer);
+            blockObj.transform.position = slot.position;
+            blockObj.transform.localScale = Vector3.one;
+
+            BlockController controller = blockObj.GetComponent<BlockController>();
+            if (controller == null)
+            {
+                Debug.LogError("BlockSpawner: Block prefab missing BlockController!");
+                Destroy(blockObj);
+                return;
+            }
+
+            Color blockColor = _colorSelector != null ? _colorSelector.GetRandomColor() : Color.white;
+
+            controller.Initialize(runtimeBlock.cells, runtimeBlock.width, _cellPrefab, blockColor);
+            controller.OnPlaced += OnBlockPlaced;
+
+            _activeBlocks.Add(controller);
+        }
+
+        private void OnBlockPlaced(BlockController block)
+        {
+            if (block == null) return;
+
+            block.OnPlaced -= OnBlockPlaced;
+            _activeBlocks.Remove(block);
+        }
+        #endregion
+
+        #region Game Over Validation
+        private void ScheduleGameOverValidation()
+        {
+            if (IsGameOver) return;
+
+            if (_gameOverValidationRoutine != null)
+            {
+                StopCoroutine(_gameOverValidationRoutine);
+            }
+
+            _gameOverValidationRoutine = StartCoroutine(ValidateGameOverAfterBoardSettlesRoutine());
+        }
+
+        private IEnumerator ValidateGameOverAfterBoardSettlesRoutine()
+        {
+            while (_isSpawning)
+                yield return null;
+
+            yield return new WaitForEndOfFrame();
+            yield return null;
+
+            _gameOverValidationRoutine = null;
+
+            CheckGameOverConditionImmediate();
+        }
+
+        private void CheckGameOverConditionImmediate()
+        {
+            if (IsGameOver) return;
+
+            PurgeNullBlocks();
+
+            if (_activeBlocks.Count == 0) return;
+
+            bool hasAnyValidMove = HasAnyValidMoveForActiveBlocks();
+
+            if (!hasAnyValidMove)
+            {
+                TriggerGameOver();
+            }
+        }
+
+        private bool HasAnyValidMoveForActiveBlocks()
+        {
+            for (int i = 0; i < _activeBlocks.Count; i++)
+            {
+                BlockController block = _activeBlocks[i];
+                if (block == null) continue;
+
+                if (CanBlockFitAnywhere(block))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private bool CanBlockFitAnywhere(BlockController block)
+        {
+            if (block == null) return false;
+
+            List<Vector2Int> shapeOffsets = block.GetShapeOffsets();
+            if (shapeOffsets == null || shapeOffsets.Count == 0) return false;
+
+            if (GameServices.BoardQuery != null)
+                return GameServices.BoardQuery.CanPlaceBlockAnywhere(shapeOffsets);
+
+            if (GridManager.Instance != null)
+                return GridManager.Instance.CanPlaceBlockAnywhere(shapeOffsets);
+
+            return false;
         }
 
         private void TriggerGameOver()
         {
             if (IsGameOver) return;
+
             IsGameOver = true;
-            GameManager.Instance.TriggerGameOver();
+
+            if (GameManager.Instance != null)
+                GameManager.Instance.TriggerGameOver();
+        }
+        #endregion
+
+        #region Config Helpers
+        private float GetSpawnDelay()
+        {
+            if (GameServices.Balance != null)
+                return GameServices.Balance.SpawnDelay;
+
+            return _runtimeConfig != null ? _runtimeConfig.SpawnDelay : 0.5f;
+        }
+
+        private int GetSpawnBatchSize()
+        {
+            if (GameServices.Balance != null)
+                return GameServices.Balance.SpawnBatchSize;
+
+            return _runtimeConfig != null ? _runtimeConfig.BatchSize : 3;
+        }
+
+        private float GetBoomChance()
+        {
+            if (GameServices.Balance != null)
+                return GameServices.Balance.BoomChance;
+
+            return _runtimeConfig != null ? _runtimeConfig.BoomChance : 0f;
+        }
+
+        private float GetToolChance()
+        {
+            if (GameServices.Balance != null)
+                return GameServices.Balance.ToolChance;
+
+            return _runtimeConfig != null ? _runtimeConfig.ToolChance : 0f;
+        }
+        #endregion
+
+        #region Utility
+        private void ClearActiveBlocks()
+        {
+            for (int i = 0; i < _activeBlocks.Count; i++)
+            {
+                if (_activeBlocks[i] != null)
+                    Destroy(_activeBlocks[i].gameObject);
+            }
+
+            _activeBlocks.Clear();
+        }
+
+        private void PurgeNullBlocks()
+        {
+            _activeBlocks.RemoveAll(block => block == null);
         }
         #endregion
     }

@@ -1,22 +1,48 @@
 ﻿using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
+using _Game.Scripts.Core.Services;
 
 namespace _Game.Scripts.Core
 {
-    public class AudioManager : MonoBehaviour
+    public class AudioManager : MonoBehaviour, IAudioService
     {
+        #region Singleton
         public static AudioManager Instance { get; private set; }
 
-        [Header("Sources")]
+        private Coroutine _loopCoroutine;
+
+        private void Awake()
+        {
+            if (Instance == null) Instance = this;
+            else
+            {
+                Destroy(gameObject);
+                return;
+            }
+
+            LoadSettings();
+            GameServices.RegisterAudio(this);
+        }
+
+        private void OnDestroy()
+        {
+            if (GameServices.Audio == this)
+                GameServices.RegisterAudio(null);
+
+            GameEvents.OnMoveCompleted -= HandleMoveCompleted;
+            GameEvents.OnGameOver -= HandleGameOver;
+            GameEvents.OnComboUpdated -= HandleComboUpdated;
+        }
+        #endregion
+
+        #region Legacy Serialized Fields
+        [Header("Audio Sources")]
         [SerializeField] private AudioSource _musicSource;
         [SerializeField] private AudioSource _sfxSource;
 
-        [Header("Music Library")]
-        [SerializeField] private List<AudioClip> _bgmList; 
-
-        [Header("Music Settings")]
-        [SerializeField] private float _loopGapDuration = 3.0f; 
+        [Header("BGM Playlist")]
+        [SerializeField] private AudioClip[] _bgmList;
+        [SerializeField] private float _loopGapDuration = 3f;
         [SerializeField] private bool _isLooping = true;
 
         [Header("SFX Clips")]
@@ -26,128 +52,256 @@ namespace _Game.Scripts.Core
         [SerializeField] private AudioClip _comboClip;
         [SerializeField] private AudioClip _gameOverClip;
 
-        // Settings Data
-        private int _currentBgmIndex = 0; 
-        private float _musicVolume = 1f;
-        private float _sfxVolume = 1f;
-        private bool _isMusicMuted = false;
-        private bool _isSfxMuted = false;
-        private Coroutine _musicCoroutine;
+        [Header("Saved State")]
+        [SerializeField] private bool _musicEnabled = true;
+        [SerializeField] private bool _sfxEnabled = true;
+        [SerializeField] private float _musicVolume = 1f;
+        [SerializeField] private float _sfxVolume = 1f;
+        [SerializeField] private int _currentBgmIndex = 0;
 
-        private void Awake()
+        public bool IsMusicEnabled => _musicEnabled;
+        public bool IsSfxEnabled => _sfxEnabled;
+        #endregion
+
+        #region Lifecycle
+        private void Start()
         {
-            if (Instance == null) Instance = this;
-            else Destroy(gameObject);
+            ApplyVolumes();
+            ApplyMusicState();
 
-            LoadSettings();
+            GameEvents.OnMoveCompleted += HandleMoveCompleted;
+            GameEvents.OnGameOver += HandleGameOver;
+            GameEvents.OnComboUpdated += HandleComboUpdated;
         }
 
-        private void Start() => PlayBGM(_currentBgmIndex);
-        private void OnEnable() => GameEvents.OnMoveCompleted += HandleMoveCompleted;
-        private void OnDisable() => GameEvents.OnMoveCompleted -= HandleMoveCompleted;
+        private void Update()
+        {
+            if (!_musicEnabled) return;
+            if (!_isLooping) return;
+            if (_musicSource == null) return;
+            if (_musicSource.clip == null) return;
+            if (_musicSource.isPlaying) return;
+            if (_loopCoroutine != null) return;
 
-        #region SFX Logic (Giữ nguyên)
-        private void HandleMoveCompleted(int linesCleared, Vector3 pos)
-        {
-            if (linesCleared == 0) PlaySFX(_placeBlockClip, 0.9f, 1.1f);
-            else if (linesCleared >= 2) PlaySFX(_comboClip);
-            else PlaySFX(_clearLineClip);
-        }
-        public void PlayClickSound() => PlaySFX(_clickClip);
-        public void PlayGameOverSound() { StopMusic(); PlaySFX(_gameOverClip); }
-        public void PlaySFX(AudioClip clip, float minPitch = 1f, float maxPitch = 1f)
-        {
-            if (clip == null || _isSfxMuted) return;
-            _sfxSource.pitch = Random.Range(minPitch, maxPitch);
-            _sfxSource.PlayOneShot(clip);
+            _loopCoroutine = StartCoroutine(RestartMusicAfterGap());
         }
         #endregion
 
-        #region Music Logic (Giữ nguyên)
-        public void PlayBGM(int index)
+        #region IAudioService
+        public void PlayButtonClick() => PlaySfx(_clickClip);
+        public void PlayPlaceBlock() => PlaySfx(_placeBlockClip);
+        public void PlayLineClear() => PlaySfx(_clearLineClip);
+        public void PlayGameOver() => PlaySfx(_gameOverClip);
+
+        public void SetMusicEnabled(bool enabled)
         {
-            if (_bgmList == null || _bgmList.Count == 0) return;
-            if (index < 0 || index >= _bgmList.Count) index = 0;
-            _currentBgmIndex = index;
-            if (_musicCoroutine != null) StopCoroutine(_musicCoroutine);
-            _musicCoroutine = StartCoroutine(PlayBGMWithGapRoutine(_bgmList[index]));
+            _musicEnabled = enabled;
+            PersistSettings();
+            ApplyMusicState();
         }
-        private IEnumerator PlayBGMWithGapRoutine(AudioClip clip)
+
+        public void SetSfxEnabled(bool enabled)
         {
-            _musicSource.loop = false;
-            _musicSource.clip = clip;
-            while (true)
-            {
-                _musicSource.Play();
-                yield return new WaitForSecondsRealtime(clip.length);
-                if (!_isLooping) break;
-                yield return new WaitForSecondsRealtime(_loopGapDuration);
-            }
+            _sfxEnabled = enabled;
+            PersistSettings();
         }
-        public void StopMusic() { if (_musicCoroutine != null) StopCoroutine(_musicCoroutine); _musicSource.Stop(); }
-        public void SaveBGMIndex(int index) { _currentBgmIndex = index; PlayerPrefs.SetInt("BGMIndex", index); PlayerPrefs.Save(); PlayBGM(_currentBgmIndex); }
-        public int GetCurrentBGMIndex() => _currentBgmIndex;
-        public AudioClip GetBGMClip(int index) => (_bgmList != null && index >= 0 && index < _bgmList.Count) ? _bgmList[index] : null;
-        public int GetBGMCount() => _bgmList == null ? 0 : _bgmList.Count;
         #endregion
 
-        #region Settings & Volume [ĐIỀU CHỈNH QUAN TRỌNG]
+        #region Backward-Compatible API
+        public void PlayClickSound() => PlayButtonClick();
 
-        // Chỉ thay đổi giá trị Runtime (Nghe thử ngay lập tức) - KHÔNG LƯU
-        public void SetMusicVolume(float volume)
+        public float GetMusicVolume() => _musicVolume;
+        public float GetSFXVolume() => _sfxVolume;
+        public bool IsMusicOn() => _musicEnabled;
+        public bool IsSFXOn() => _sfxEnabled;
+
+        public void SetMusicVolume(float value)
         {
-            _musicVolume = volume;
-            _musicSource.volume = _isMusicMuted ? 0 : _musicVolume;
+            _musicVolume = Mathf.Clamp01(value);
+            ApplyVolumes();
         }
 
-        public void SetSfxVolume(float volume)
+        public void SetSfxVolume(float value)
         {
-            _sfxVolume = volume;
-            _sfxSource.volume = _isSfxMuted ? 0 : _sfxVolume;
+            _sfxVolume = Mathf.Clamp01(value);
+            ApplyVolumes();
         }
 
         public void ToggleMusic(bool isOn)
         {
-            _isMusicMuted = !isOn; 
-            _musicSource.mute = _isMusicMuted;
+            _musicEnabled = isOn;
+            ApplyMusicState();
         }
 
         public void ToggleSfx(bool isOn)
         {
-            _isSfxMuted = !isOn;
-            _sfxSource.mute = _isSfxMuted;
+            _sfxEnabled = isOn;
         }
-        
+
         public void SaveSettings()
         {
-            PlayerPrefs.SetFloat("MusicVol", _musicVolume);
-            PlayerPrefs.SetFloat("SFXVol", _sfxVolume);
-            PlayerPrefs.SetInt("MusicMute", _isMusicMuted ? 1 : 0);
-            PlayerPrefs.SetInt("SFXMute", _isSfxMuted ? 1 : 0);
-            PlayerPrefs.Save();
-            
-            Debug.Log("Audio Settings Saved!");
+            PersistSettings();
+        }
+
+        public void SaveBGMIndex(int index)
+        {
+            _currentBgmIndex = Mathf.Clamp(index, 0, Mathf.Max(0, GetBGMCount() - 1));
+            PersistSettings();
+        }
+
+        public int GetCurrentBGMIndex() => _currentBgmIndex;
+
+        public int GetBGMCount()
+        {
+            return _bgmList != null ? _bgmList.Length : 0;
+        }
+
+        public AudioClip GetBGMClip(int index)
+        {
+            if (_bgmList == null || _bgmList.Length == 0) return null;
+            if (index < 0 || index >= _bgmList.Length) return null;
+            return _bgmList[index];
+        }
+
+        public void PlayBGM(int index)
+        {
+            if (_musicSource == null) return;
+
+            AudioClip clip = GetBGMClip(index);
+            if (clip == null) return;
+
+            _currentBgmIndex = index;
+            _musicSource.clip = clip;
+            _musicSource.volume = _musicVolume;
+
+            if (_musicEnabled)
+                _musicSource.Play();
+
+            if (_loopCoroutine != null)
+            {
+                StopCoroutine(_loopCoroutine);
+                _loopCoroutine = null;
+            }
+        }
+        #endregion
+
+        #region Event Handlers
+        private void HandleMoveCompleted(int totalLines, Vector3 effectCenter)
+        {
+            if (totalLines > 0) PlayLineClear();
+            else PlayPlaceBlock();
+        }
+
+        private void HandleGameOver()
+        {
+            PlayGameOver();
+        }
+
+        private void HandleComboUpdated(int combo)
+        {
+            if (combo > 1)
+                PlaySfx(_comboClip);
+        }
+        #endregion
+
+        #region Internal
+        private IEnumerator RestartMusicAfterGap()
+        {
+            yield return new WaitForSecondsRealtime(_loopGapDuration);
+
+            if (_musicEnabled && _musicSource != null && _musicSource.clip != null)
+                _musicSource.Play();
+
+            _loopCoroutine = null;
+        }
+
+        private void PlaySfx(AudioClip clip)
+        {
+            if (!_sfxEnabled) return;
+            if (_sfxSource == null) return;
+            if (clip == null) return;
+
+            _sfxSource.volume = _sfxVolume;
+            _sfxSource.PlayOneShot(clip);
+        }
+
+        private void ApplyVolumes()
+        {
+            if (_musicSource != null)
+                _musicSource.volume = _musicVolume;
+
+            if (_sfxSource != null)
+                _sfxSource.volume = _sfxVolume;
+        }
+
+        private void ApplyMusicState()
+        {
+            if (_musicSource == null) return;
+
+            if (_musicEnabled)
+            {
+                AudioClip clip = GetBGMClip(_currentBgmIndex);
+                if (clip != null)
+                    _musicSource.clip = clip;
+
+                _musicSource.volume = _musicVolume;
+
+                if (_musicSource.clip != null && !_musicSource.isPlaying)
+                    _musicSource.Play();
+            }
+            else
+            {
+                _musicSource.Stop();
+            }
+
+            if (_loopCoroutine != null)
+            {
+                StopCoroutine(_loopCoroutine);
+                _loopCoroutine = null;
+            }
         }
 
         private void LoadSettings()
         {
-            _musicVolume = PlayerPrefs.GetFloat("MusicVol", 0.5f);
-            _sfxVolume = PlayerPrefs.GetFloat("SFXVol", 1f);
-            _isMusicMuted = PlayerPrefs.GetInt("MusicMute", 0) == 1;
-            _isSfxMuted = PlayerPrefs.GetInt("SFXMute", 0) == 1;
-            _currentBgmIndex = PlayerPrefs.GetInt("BGMIndex", 0);
-
-            _musicSource.volume = _musicVolume;
-            _musicSource.mute = _isMusicMuted;
-            _sfxSource.volume = _sfxVolume;
-            _sfxSource.mute = _isSfxMuted;
+            if (GameServices.Save != null)
+            {
+                _musicEnabled = GameServices.Save.GetBool("music_enabled", true);
+                _sfxEnabled = GameServices.Save.GetBool("sfx_enabled", true);
+                _musicVolume = GameServices.Save.GetFloat("music_volume", 1f);
+                _sfxVolume = GameServices.Save.GetFloat("sfx_volume", 1f);
+                _currentBgmIndex = GameServices.Save.GetInt("bgm_index", 0);
+            }
+            else
+            {
+                _musicEnabled = PlayerPrefs.GetInt("music_enabled", 1) == 1;
+                _sfxEnabled = PlayerPrefs.GetInt("sfx_enabled", 1) == 1;
+                _musicVolume = PlayerPrefs.GetFloat("music_volume", 1f);
+                _sfxVolume = PlayerPrefs.GetFloat("sfx_volume", 1f);
+                _currentBgmIndex = PlayerPrefs.GetInt("bgm_index", 0);
+            }
         }
 
-        public float GetMusicVolume() => _musicVolume;
-        public float GetSFXVolume() => _sfxVolume;
-        public bool IsMusicOn() => !_isMusicMuted;
-        public bool IsSFXOn() => !_isSfxMuted;
-
+        private void PersistSettings()
+        {
+            if (GameServices.Save != null)
+            {
+                GameServices.Save.SetBool("music_enabled", _musicEnabled);
+                GameServices.Save.SetBool("sfx_enabled", _sfxEnabled);
+                GameServices.Save.SetFloat("music_volume", _musicVolume);
+                GameServices.Save.SetFloat("sfx_volume", _sfxVolume);
+                GameServices.Save.SetInt("bgm_index", _currentBgmIndex);
+                GameServices.Save.Save();
+            }
+            else
+            {
+                PlayerPrefs.SetInt("music_enabled", _musicEnabled ? 1 : 0);
+                PlayerPrefs.SetInt("sfx_enabled", _sfxEnabled ? 1 : 0);
+                PlayerPrefs.SetFloat("music_volume", _musicVolume);
+                PlayerPrefs.SetFloat("sfx_volume", _sfxVolume);
+                PlayerPrefs.SetInt("bgm_index", _currentBgmIndex);
+                PlayerPrefs.Save();
+            }
+        }
         #endregion
     }
 }
