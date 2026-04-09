@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: eb29e1dc07624cda84873eabf86937e1, type: 3}
+  m_Name: SH_Single
+  m_EditorClassIdentifier: Assembly-CSharp::BreakItAll.Data.ShapeDefinition
+  id: single
+  displayName: Single
+  matrix:
+    width: 3
+    height: 3
+    cells: 000000000100000000
+  difficultyTier: 0
+  tags: []
+  spawnWeight: 1
+  unlockLevel: 0
+  enabledInEndless: 1
+  enabledInArcade: 1

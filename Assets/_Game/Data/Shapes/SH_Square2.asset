@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: eb29e1dc07624cda84873eabf86937e1, type: 3}
+  m_Name: SH_Square2
+  m_EditorClassIdentifier: Assembly-CSharp::BreakItAll.Data.ShapeDefinition
+  id: square2
+  displayName: Square2
+  matrix:
+    width: 4
+    height: 4
+    cells: 00000000000101000001010000000000
+  difficultyTier: 0
+  tags: []
+  spawnWeight: 1
+  unlockLevel: 0
+  enabledInEndless: 1
+  enabledInArcade: 1

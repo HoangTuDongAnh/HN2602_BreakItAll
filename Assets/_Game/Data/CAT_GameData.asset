@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: da897e3dc94844a69a78e6ad4490a937, type: 3}
+  m_Name: CAT_GameData
+  m_EditorClassIdentifier: Assembly-CSharp::BreakItAll.Data.GameDataCatalog
+  gameSettings: {fileID: 11400000, guid: ad6f747adc29c89438f1d6c48c017532, type: 2}
+  modes:
+  - {fileID: 11400000, guid: ed21edd3ea67fdf4eb65daf4b4319708, type: 2}
+  - {fileID: 11400000, guid: 3220880dc0adcd147921cb9d26225acd, type: 2}
+  shapes:
+  - {fileID: 11400000, guid: c11026d0bfe49d04887fcf89b243a31b, type: 2}
+  - {fileID: 11400000, guid: 5b014cf6458a4cf43886ca6efb2184c6, type: 2}
+  - {fileID: 11400000, guid: 48eedbb74370b63418b182acecff2dcf, type: 2}
+  spawnProfiles:
+  - {fileID: 11400000, guid: 70dab0903ac2f82428b820b16cfe20a8, type: 2}
+  levels: []
