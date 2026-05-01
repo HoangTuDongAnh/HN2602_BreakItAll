@@ -3,7 +3,7 @@ using _Game.Scripts.Core.Services;
 
 namespace _Game.Scripts.Core
 {
-    public class GameBalanceConfig : MonoBehaviour, IGameBalanceService
+    public class GameBalanceConfig : MonoBehaviour
     {
         [Header("Score")]
         [SerializeField] private int _baseLineScore = 100;
@@ -12,18 +12,14 @@ namespace _Game.Scripts.Core
 
         [Header("Spawn")]
         [SerializeField] private float _spawnDelay = 0.5f;
-        [SerializeField] private int _spawnBatchSize = 3;
-        [SerializeField] private float _boomChance = 0f;
-        [SerializeField] private float _toolChance = 0f;
+        [SerializeField] private int _spawnBatchSize = 3;
 
         public int BaseLineScore => _baseLineScore;
         public int ComboBonusPerStreak => _comboBonusPerStreak;
         public int PlacementScorePerCell => _placementScorePerCell;
 
         public float SpawnDelay => _spawnDelay;
-        public int SpawnBatchSize => _spawnBatchSize;
-        public float BoomChance => _boomChance;
-        public float ToolChance => _toolChance;
+        public int SpawnBatchSize => _spawnBatchSize;
 
         private void Awake()
         {

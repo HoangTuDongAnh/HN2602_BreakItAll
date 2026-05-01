@@ -1,12 +1,21 @@
-﻿using UnityEngine;
-using _Game.Scripts.Data;
+using _Game.Scripts.Core.Arcade;
 using _Game.Scripts.Core.Services;
+using _Game.Scripts.Data;
 using _Game.Scripts.Logic;
+using _Game.Scripts.Logic.Resolve;
+using _Game.Scripts.Modes;
+using _Game.Scripts.Modes.Levels;
+using _Game.Scripts.Modes.Objectives;
 using _Game.Scripts.View.UI;
+using UnityEngine;
 
 namespace _Game.Scripts.Core
 {
-    public class GameManager : MonoBehaviour, IGameStateService
+    /// <summary>
+    /// Dieu phoi vong doi game: Home / Map / Gameplay / Result.
+    /// GameManager chi quan ly session flow. Objective progress/pass/fail duoc xu ly boi ArcadeObjectiveController.
+    /// </summary>
+    public class GameManager : MonoBehaviour
     {
         #region Singleton
         public static GameManager Instance { get; private set; }
@@ -21,177 +30,308 @@ namespace _Game.Scripts.Core
             }
 
             GameServices.RegisterGameState(this);
+            GameServices.RegisterSession(this);
         }
+        #endregion
 
-        private void OnDestroy()
-        {
-            if (GameServices.GameState == this)
-                GameServices.RegisterGameState(null);
-        }
+        #region Inspector
+        [Header("Mode")]
+        [SerializeField] private GameModeRunner _modeRunner;
+        [SerializeField] private GameModeType _defaultMode = GameModeType.Endless;
         #endregion
 
         #region State
-        [field: SerializeField]
-        public GameState CurrentState { get; private set; } = GameState.Home;
+        [field: SerializeField] public GameState CurrentState { get; private set; } = GameState.Home;
+        public GameModeType CurrentModeType { get; private set; }
+        public LevelDefinition ActiveArcadeLevel { get; private set; }
+        public IGameObjective ActiveObjective => _arcadeObjectiveController.ActiveObjective;
+        public ObjectiveProgress CurrentObjectiveProgress => _arcadeObjectiveController.Progress;
+
+        private readonly ArcadeObjectiveController _arcadeObjectiveController = new ArcadeObjectiveController();
+        private bool _arcadeLevelWon;
         #endregion
 
-        #region Lifecycle
+        #region Unity Lifecycle
+        private void OnEnable()
+        {
+            GameEvents.OnBoardResolved += HandleBoardResolved;
+        }
+
+        private void OnDisable()
+        {
+            GameEvents.OnBoardResolved -= HandleBoardResolved;
+        }
+
         private void Start()
         {
-            SetState(GameState.Home);
-
-            if (BlockSpawner.Instance != null)
-                BlockSpawner.Instance.ClearSpawner();
-
-            if (GridManager.Instance != null)
-                GridManager.Instance.ClearBoard();
-
-            if (UIManager.Instance != null)
-                UIManager.Instance.ShowHome();
+            CurrentModeType = _defaultMode;
+            ReturnToHome();
         }
         #endregion
 
-        #region IGameStateService
-        public bool IsInputAllowed()
-        {
-            return CurrentState == GameState.Playing;
-        }
+        #region State API
+        public bool IsInputAllowed() => CurrentState == GameState.Playing;
+        public bool IsGameRunning() => CurrentState == GameState.Playing;
+        public bool IsGameOverState() => CurrentState == GameState.GameOver;
 
         public void SetState(GameState state)
         {
             CurrentState = state;
-
-            switch (CurrentState)
-            {
-                case GameState.Home:
-                    Time.timeScale = 1f;
-                    break;
-
-                case GameState.Playing:
-                    Time.timeScale = 1f;
-                    break;
-
-                case GameState.Paused:
-                    Time.timeScale = 0f;
-                    break;
-
-                case GameState.GameOver:
-                    Time.timeScale = 1f;
-                    break;
-            }
+            Time.timeScale = state == GameState.Paused ? 0f : 1f;
         }
         #endregion
 
         #region Public Controls
-        public void StartGame()
+        public void SelectMode(GameModeType modeType)
         {
-            if (GameServices.Session != null)
-            {
-                GameServices.Session.StartNewGame();
-                return;
-            }
-
-            FallbackStartGame();
+            CurrentModeType = modeType;
         }
 
-        public void EndGame()
+        public void StartGame()
         {
-            if (GameServices.Session != null)
+            StartNewGame(CurrentModeType);
+        }
+
+        public void StartEndless()
+        {
+            ArcadeSession.ClearSelection();
+            ActiveArcadeLevel = null;
+            StartNewGame(GameModeType.Endless);
+        }
+
+        public void OpenArcadeMap()
+        {
+            CurrentModeType = GameModeType.Arcade;
+            SetState(GameState.Home);
+            UIManager.Instance?.ShowArcadeMap();
+        }
+
+        public void StartArcade()
+        {
+            StartNewGame(GameModeType.Arcade);
+        }
+
+        public void StartArcadeLevel(LevelDefinition level)
+        {
+            if (level == null)
             {
-                GameServices.Session.ReturnToHome();
+                Debug.LogWarning("GameManager.StartArcadeLevel: level is null.");
                 return;
             }
 
-            FallbackReturnHome();
+            ActiveArcadeLevel = level;
+            StartNewGame(GameModeType.Arcade);
+            GameEvents.RaiseArcadeLevelStarted(level);
+        }
+
+        public void StartNewGame(GameModeType modeType)
+        {
+            CurrentModeType = modeType;
+            _arcadeLevelWon = false;
+
+            if (modeType != GameModeType.Arcade)
+                ActiveArcadeLevel = null;
+            else if (ArcadeSession.SelectedLevel != null)
+                ActiveArcadeLevel = ArcadeSession.SelectedLevel;
+
+            SetState(GameState.Home);
+
+            ModeRuntimeContext context = BuildRuntimeContext();
+            IGameModeRules rules = ResolveRules();
+
+            rules?.OnSessionStarting(context);
+            ResetGameplayWorld(rules, context);
+            ActivateObjective(rules, context);
+
+            if (UIManager.Instance != null)
+            {
+                UIManager.Instance.ShowGameplay(() => CompleteGameplayStart(rules, context));
+            }
+            else
+            {
+                CompleteGameplayStart(rules, context);
+            }
+        }
+
+        private void CompleteGameplayStart(IGameModeRules rules, ModeRuntimeContext context)
+        {
+            SetState(GameState.Playing);
+            rules?.OnSessionStarted(context);
+            GameEvents.RaiseGameStarted();
         }
 
         public void RestartGame()
         {
-            if (GameServices.Session != null)
-            {
-                GameServices.Session.RestartCurrentGame();
-                return;
-            }
+            StartNewGame(CurrentModeType);
+        }
 
-            FallbackStartGame();
+        public void EndGame()
+        {
+            ReturnToHome();
+        }
+
+        public void ReturnToHome()
+        {
+            SetState(GameState.Home);
+            IGameModeRules rules = ResolveRules();
+            rules?.OnReturningHome(BuildRuntimeContext());
+            BlockSpawner.Instance?.ClearSpawner();
+            GridManager.Instance?.ClearBoard();
+            ClearObjective();
+            ActiveArcadeLevel = null;
+            ArcadeSession.ClearSelection();
+            UIManager.Instance?.ShowHome();
+        }
+
+        public void ReturnToArcadeMap()
+        {
+            SetState(GameState.Home);
+            IGameModeRules rules = ResolveRules();
+            rules?.OnReturningHome(BuildRuntimeContext());
+            BlockSpawner.Instance?.ClearSpawner();
+            GridManager.Instance?.ClearBoard();
+            ClearObjective();
+            ActiveArcadeLevel = null;
+            ArcadeSession.ClearSelection();
+            UIManager.Instance?.ShowArcadeMap();
         }
 
         public void PauseGame()
         {
             if (CurrentState != GameState.Playing) return;
-
             SetState(GameState.Paused);
-            GameEvents.OnGamePaused?.Invoke();
+            GameEvents.RaiseGamePaused();
         }
 
         public void ResumeGame()
         {
             if (CurrentState != GameState.Paused) return;
-
             SetState(GameState.Playing);
-            GameEvents.OnGameResumed?.Invoke();
+            GameEvents.RaiseGameResumed();
         }
 
         public void TriggerGameOver()
         {
-            if (GameServices.Session != null)
-            {
-                GameServices.Session.HandleGameOver();
-                return;
-            }
-
-            FallbackTriggerGameOver();
-        }
-        #endregion
-
-        #region Fallback Flow
-        private void FallbackStartGame()
-        {
-            SetState(GameState.Playing);
-
-            if (GameServices.Score != null)
-                GameServices.Score.ResetScore();
-
-            if (GridManager.Instance != null)
-                GridManager.Instance.ClearBoard();
-
-            if (UIManager.Instance != null)
-                UIManager.Instance.ShowGameplay();
-
-            if (BlockSpawner.Instance != null)
-                BlockSpawner.Instance.ResetSpawner();
-
-            GameEvents.OnGameStarted?.Invoke();
+            HandleGameOver();
         }
 
-        private void FallbackReturnHome()
-        {
-            SetState(GameState.Home);
-
-            if (BlockSpawner.Instance != null)
-                BlockSpawner.Instance.ClearSpawner();
-
-            if (GridManager.Instance != null)
-                GridManager.Instance.ClearBoard();
-
-            if (UIManager.Instance != null)
-                UIManager.Instance.ShowHome();
-        }
-
-        private void FallbackTriggerGameOver()
+        public void HandleGameOver()
         {
             if (CurrentState == GameState.GameOver) return;
 
             SetState(GameState.GameOver);
 
-            if (UIManager.Instance != null)
-            {
-                int currentScore = GameServices.Score != null ? GameServices.Score.CurrentScore : 0;
-                int bestScore = GameServices.Score != null ? GameServices.Score.BestScore : 0;
-                UIManager.Instance.ShowGameOver(currentScore, bestScore);
-            }
+            if (CurrentModeType == GameModeType.Arcade && ActiveArcadeLevel != null && !_arcadeLevelWon)
+                GameEvents.RaiseArcadeLevelFailed(ActiveArcadeLevel);
 
-            GameEvents.OnGameOver?.Invoke();
+            UIManager.Instance?.ShowGameOver(
+                ScoreManager.Instance != null ? ScoreManager.Instance.CurrentScore : 0,
+                ScoreManager.Instance != null ? ScoreManager.Instance.BestScore : 0);
+
+            GameEvents.RaiseGameOver();
+        }
+        #endregion
+
+        #region Objective Report API
+        public void ReportScoreChanged(int currentScore)
+        {
+            if (!CanUpdateArcadeObjective()) return;
+            HandleObjectiveResult(_arcadeObjectiveController.NotifyScoreChanged(currentScore));
+        }
+
+        public void ReportItemCollected(string itemId, int amount)
+        {
+            // Compatibility method. Collect objective now reads BoardResolveResult directly.
+        }
+
+        public void ReportTimerUpdated(float remainingTimeSeconds, float totalTimeSeconds)
+        {
+            GameEvents.RaiseTimerUpdated(remainingTimeSeconds, totalTimeSeconds);
+            if (!CanUpdateArcadeObjective()) return;
+            HandleObjectiveResult(_arcadeObjectiveController.NotifyTimerUpdated(remainingTimeSeconds, totalTimeSeconds));
+        }
+        #endregion
+
+        #region Internal Flow
+        private void HandleBoardResolved(BoardResolveResult result)
+        {
+            if (!CanUpdateArcadeObjective()) return;
+            HandleObjectiveResult(_arcadeObjectiveController.NotifyBoardResolved(result));
+        }
+
+        private bool CanUpdateArcadeObjective()
+        {
+            return CurrentState == GameState.Playing
+                   && CurrentModeType == GameModeType.Arcade
+                   && ActiveArcadeLevel != null
+                   && _arcadeObjectiveController.HasObjective;
+        }
+
+        private void HandleObjectiveResult(ObjectiveCheckResult result)
+        {
+            switch (result)
+            {
+                case ObjectiveCheckResult.Completed:
+                    CompleteArcadeLevelIfNeeded();
+                    break;
+                case ObjectiveCheckResult.Failed:
+                    HandleGameOver();
+                    break;
+            }
+        }
+
+        private IGameModeRules ResolveRules()
+        {
+            if (_modeRunner == null) _modeRunner = FindFirstObjectByType<GameModeRunner>();
+            if (_modeRunner == null) _modeRunner = gameObject.AddComponent<GameModeRunner>();
+            return _modeRunner.ResolveRules(CurrentModeType);
+        }
+
+        private ModeRuntimeContext BuildRuntimeContext()
+        {
+            return new ModeRuntimeContext(this, ScoreManager.Instance, GameServices.Balance, GridManager.Instance, BlockSpawner.Instance);
+        }
+
+        private void ResetGameplayWorld(IGameModeRules rules, ModeRuntimeContext context)
+        {
+            if (rules == null || rules.ResetScoreOnStart)
+                ScoreManager.Instance?.ResetScore();
+            if (rules == null || rules.ClearBoardOnStart)
+                GridManager.Instance?.ClearBoard();
+            rules?.OnBoardPrepared(context);
+            if (rules == null || rules.ResetSpawnerOnStart)
+                BlockSpawner.Instance?.ResetSpawner();
+        }
+
+        private void ActivateObjective(IGameModeRules rules, ModeRuntimeContext context)
+        {
+            ClearObjective();
+            IGameObjective objective = rules != null ? rules.CreateObjective(context) : new NoObjective();
+            _arcadeObjectiveController.Start(ActiveArcadeLevel, objective, context);
+        }
+
+        private void ClearObjective()
+        {
+            _arcadeObjectiveController.Clear();
+        }
+
+        private void CompleteArcadeLevelIfNeeded()
+        {
+            if (CurrentModeType != GameModeType.Arcade || ActiveArcadeLevel == null) return;
+
+            LevelDefinition completedLevel = ActiveArcadeLevel;
+            _arcadeLevelWon = true;
+
+            ArcadeProgressService.MarkLevelPassed(completedLevel);
+            GameEvents.RaiseArcadeLevelCompleted(completedLevel);
+
+            SetState(GameState.Home);
+            BlockSpawner.Instance?.ClearSpawner();
+            GridManager.Instance?.ClearBoard();
+            ClearObjective();
+            ActiveArcadeLevel = null;
+            ArcadeSession.ClearSelection();
+            UIManager.Instance?.ShowArcadeMap();
         }
         #endregion
     }

@@ -1,10 +1,12 @@
 ﻿using UnityEngine;
 using _Game.Scripts.Core.Services;
 using _Game.Scripts.Core.Scoring;
+using _Game.Scripts.Modes;
+using _Game.Scripts.Modes.Levels;
 
 namespace _Game.Scripts.Core
 {
-    public class ScoreManager : MonoBehaviour, IScoreService
+    public class ScoreManager : MonoBehaviour
     {
         #region Singleton
         public static ScoreManager Instance { get; private set; }
@@ -57,7 +59,6 @@ namespace _Game.Scripts.Core
         #region Lifecycle
         private void Start()
         {
-            // Rebuild lại ở Start để chắc chắn nếu Balance service đăng ký sau Awake
             RebuildScoreRule();
 
             GameEvents.OnMoveCompleted += HandleMoveCompleted;
@@ -71,10 +72,12 @@ namespace _Game.Scripts.Core
             _currentScore = 0;
             _comboCount = 0;
             BroadcastAll();
+            NotifyObjectiveScoreProgress();
         }
 
         public void AddPlacementScore(int occupiedCellCount)
         {
+            if (!IsScoringEnabledForCurrentSession()) return;
             if (occupiedCellCount <= 0) return;
 
             int placementScorePerCell = GameServices.Balance != null
@@ -85,11 +88,13 @@ namespace _Game.Scripts.Core
 
             _currentScore += occupiedCellCount * placementScorePerCell;
             CheckHighScore();
-            GameEvents.OnScoreChanged?.Invoke(_currentScore, _bestScore);
+            GameEvents.RaiseScoreChanged(_currentScore, _bestScore);
+            NotifyObjectiveScoreProgress();
         }
 
         public void AddLineClearScore(int totalLines, int combo)
         {
+            if (!IsScoringEnabledForCurrentSession()) return;
             if (totalLines <= 0) return;
 
             EnsureScoreRule();
@@ -98,7 +103,8 @@ namespace _Game.Scripts.Core
             _currentScore += calc.GainedScore;
 
             CheckHighScore();
-            GameEvents.OnScoreChanged?.Invoke(_currentScore, _bestScore);
+            GameEvents.RaiseScoreChanged(_currentScore, _bestScore);
+            NotifyObjectiveScoreProgress();
         }
 
         public void SaveHighScore()
@@ -119,6 +125,14 @@ namespace _Game.Scripts.Core
         #region Event Handlers
         private void HandleMoveCompleted(int totalLines, Vector3 effectCenter)
         {
+            if (!IsScoringEnabledForCurrentSession())
+            {
+                _comboCount = 0;
+                GameEvents.RaiseComboUpdated(_comboCount);
+                NotifyObjectiveScoreProgress();
+                return;
+            }
+
             if (totalLines > 0)
             {
                 _comboCount++;
@@ -129,20 +143,21 @@ namespace _Game.Scripts.Core
                 _currentScore += calc.GainedScore;
 
                 CheckHighScore();
-                GameEvents.OnScoreChanged?.Invoke(_currentScore, _bestScore);
+                GameEvents.RaiseScoreChanged(_currentScore, _bestScore);
+                NotifyObjectiveScoreProgress();
 
-                GameEvents.OnShowFloatingText?.Invoke(
+                GameEvents.RaiseShowFloatingText(
                     $"+{calc.GainedScore}",
                     effectCenter,
                     Color.white,
                     Mathf.Clamp(1f + (0.1f * totalLines), 1f, 1.4f)
                 );
 
-                GameEvents.OnComboUpdated?.Invoke(_comboCount);
+                GameEvents.RaiseComboUpdated(_comboCount);
 
                 if (_comboCount > 1)
                 {
-                    GameEvents.OnShowFloatingText?.Invoke(
+                    GameEvents.RaiseShowFloatingText(
                         $"Combo x{_comboCount}",
                         effectCenter + new Vector3(0f, 0.5f, 0f),
                         Color.yellow,
@@ -153,7 +168,7 @@ namespace _Game.Scripts.Core
             else
             {
                 _comboCount = 0;
-                GameEvents.OnComboUpdated?.Invoke(_comboCount);
+                GameEvents.RaiseComboUpdated(_comboCount);
             }
         }
         #endregion
@@ -196,8 +211,26 @@ namespace _Game.Scripts.Core
 
         private void BroadcastAll()
         {
-            GameEvents.OnScoreChanged?.Invoke(_currentScore, _bestScore);
-            GameEvents.OnComboUpdated?.Invoke(_comboCount);
+            GameEvents.RaiseScoreChanged(_currentScore, _bestScore);
+            GameEvents.RaiseComboUpdated(_comboCount);
+        }
+
+        private bool IsScoringEnabledForCurrentSession()
+        {
+            GameManager manager = GameManager.Instance;
+            if (manager == null) return true;
+            if (manager.CurrentModeType != GameModeType.Arcade) return true;
+
+            LevelDefinition level = manager.ActiveArcadeLevel;
+            if (level == null) return false;
+
+            return level.LevelType == ArcadeLevelType.Timed;
+        }
+
+        private void NotifyObjectiveScoreProgress()
+        {
+            if (GameServices.Session != null)
+                GameServices.Session.ReportScoreChanged(_currentScore);
         }
         #endregion
     }

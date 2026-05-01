@@ -12,83 +12,22 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 14695ee84413e37429d312ed38bc3459, type: 3}
   m_Name: Shape_Corner_Small
   m_EditorClassIdentifier: Assembly-CSharp::_Game.Scripts.Data.BlockData
+  _id: corner_small
+  _displayName: Corner Small
   tier: 0
+  spawnWeight: 1
+  tags: []
+  enabledInEndless: 1
+  enabledInArcade: 1
   columns: 2
   rows: 2
   allowRotation: 1
   boardData:
   - isOccupied: 1
-    cellType: 1
-    toolType: 0
+    blockCellType: 1
   - isOccupied: 1
-    cellType: 1
-    toolType: 0
+    blockCellType: 1
   - isOccupied: 1
-    cellType: 1
-    toolType: 0
+    blockCellType: 1
   - isOccupied: 0
-    cellType: 1
-    toolType: 0
-  - isOccupied: 0
-    cellType: 1
-    toolType: 0
-  - isOccupied: 0
-    cellType: 1
-    toolType: 0
-  - isOccupied: 0
-    cellType: 1
-    toolType: 0
-  - isOccupied: 0
-    cellType: 1
-    toolType: 0
-  - isOccupied: 0
-    cellType: 1
-    toolType: 0
-  - isOccupied: 0
-    cellType: 1
-    toolType: 0
-  - isOccupied: 0
-    cellType: 1
-    toolType: 0
-  - isOccupied: 0
-    cellType: 1
-    toolType: 0
-  - isOccupied: 0
-    cellType: 1
-    toolType: 0
-  - isOccupied: 0
-    cellType: 1
-    toolType: 0
-  - isOccupied: 0
-    cellType: 1
-    toolType: 0
-  - isOccupied: 0
-    cellType: 1
-    toolType: 0
-  - isOccupied: 0
-    cellType: 1
-    toolType: 0
-  - isOccupied: 0
-    cellType: 1
-    toolType: 0
-  - isOccupied: 0
-    cellType: 1
-    toolType: 0
-  - isOccupied: 0
-    cellType: 1
-    toolType: 0
-  - isOccupied: 0
-    cellType: 1
-    toolType: 0
-  - isOccupied: 0
-    cellType: 1
-    toolType: 0
-  - isOccupied: 0
-    cellType: 1
-    toolType: 0
-  - isOccupied: 0
-    cellType: 1
-    toolType: 0
-  - isOccupied: 0
-    cellType: 1
-    toolType: 0
+    blockCellType: 1

@@ -12,6 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 14695ee84413e37429d312ed38bc3459, type: 3}
   m_Name: Shape_Dot_1x1
   m_EditorClassIdentifier: Assembly-CSharp::_Game.Scripts.Data.BlockData
+  _id: dot_1x1
+  _displayName: Dot 1x1
   tier: 0
   columns: 1
   rows: 1

@@ -1,59 +1,84 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
-using _Game.Scripts.Core.Services;
 
 namespace _Game.Scripts.Logic.Placement
 {
-    public class BlockPlacementService : IBlockPlacementService
+    /// <summary>
+    /// Service thuần logic cho validate/preview placement.
+    /// Không phụ thuộc GridManager, Mode hoặc UI.
+    /// </summary>
+    public class BlockPlacementService
     {
+        #region Preview API
         public PlacementPreview BuildPreview(GridCoord anchor, IReadOnlyList<Vector2Int> shapeOffsets, BoardState board)
         {
-            var result = Evaluate(anchor, shapeOffsets, board);
+            PlacementResult result = Evaluate(anchor, shapeOffsets, board);
 
             return new PlacementPreview
             {
                 Anchor = result.Anchor,
-                OccupiedCoords = result.OccupiedCoords,
-                IsValid = result.IsValid
+                IsValid = result.IsValid,
+                FailureReason = result.FailureReason,
+                IsNearBoard = IsNearBoard(result, board),
+                OccupiedCoords = new List<GridCoord>(result.OccupiedCoords),
+                ValidCoords = new List<GridCoord>(result.ValidCoords),
+                InvalidCoords = new List<GridCoord>(result.InvalidCoords),
+                BlockedCoords = new List<GridCoord>(result.BlockedCoords),
+                OutOfBoundsCoords = new List<GridCoord>(result.OutOfBoundsCoords)
             };
         }
+        #endregion
 
+        #region Validate API
         public PlacementResult Evaluate(GridCoord anchor, IReadOnlyList<Vector2Int> shapeOffsets, BoardState board)
         {
-            var result = new PlacementResult
+            PlacementResult result = new PlacementResult
             {
                 Anchor = anchor,
                 IsValid = true
             };
 
-            var unique = new HashSet<GridCoord>();
-
-            foreach (var offset in shapeOffsets)
+            if (shapeOffsets == null || shapeOffsets.Count == 0 || board == null)
             {
-                var coord = anchor + offset;
+                result.IsValid = false;
+                result.FailureReason = "InvalidInput";
+                return result;
+            }
 
-                if (!board.IsInside(coord))
-                {
-                    result.IsValid = false;
-                    result.FailureReason = "OutOfBounds";
-                    return result;
-                }
+            HashSet<GridCoord> unique = new HashSet<GridCoord>();
 
-                if (board.IsOccupied(coord))
-                {
-                    result.IsValid = false;
-                    result.FailureReason = "Occupied";
-                    return result;
-                }
+            foreach (Vector2Int offset in shapeOffsets)
+            {
+                GridCoord coord = anchor + offset;
+                result.OccupiedCoords.Add(coord);
 
                 if (!unique.Add(coord))
                 {
                     result.IsValid = false;
                     result.FailureReason = "DuplicateCoord";
-                    return result;
+                    result.InvalidCoords.Add(coord);
+                    continue;
                 }
 
-                result.OccupiedCoords.Add(coord);
+                if (!board.IsInside(coord))
+                {
+                    result.IsValid = false;
+                    result.FailureReason = string.IsNullOrEmpty(result.FailureReason) ? "OutOfBounds" : result.FailureReason;
+                    result.OutOfBoundsCoords.Add(coord);
+                    result.InvalidCoords.Add(coord);
+                    continue;
+                }
+
+                if (board.IsOccupied(coord))
+                {
+                    result.IsValid = false;
+                    result.FailureReason = string.IsNullOrEmpty(result.FailureReason) ? "Occupied" : result.FailureReason;
+                    result.BlockedCoords.Add(coord);
+                    result.InvalidCoords.Add(coord);
+                    continue;
+                }
+
+                result.ValidCoords.Add(coord);
             }
 
             return result;
@@ -61,17 +86,35 @@ namespace _Game.Scripts.Logic.Placement
 
         public bool CanPlaceAnywhere(IReadOnlyList<Vector2Int> shapeOffsets, BoardState board)
         {
+            if (board == null || shapeOffsets == null || shapeOffsets.Count == 0)
+                return false;
+
             for (int x = 0; x < board.Width; x++)
             {
                 for (int y = 0; y < board.Height; y++)
                 {
-                    var anchor = new GridCoord(x, y);
-                    if (Evaluate(anchor, shapeOffsets, board).IsValid)
+                    if (Evaluate(new GridCoord(x, y), shapeOffsets, board).IsValid)
                         return true;
                 }
             }
 
             return false;
         }
+        #endregion
+
+        #region Helpers
+        private bool IsNearBoard(PlacementResult result, BoardState board)
+        {
+            if (result == null || board == null) return false;
+
+            foreach (GridCoord coord in result.OccupiedCoords)
+            {
+                if (coord.X >= -1 && coord.X <= board.Width && coord.Y >= -1 && coord.Y <= board.Height)
+                    return true;
+            }
+
+            return false;
+        }
+        #endregion
     }
 }

@@ -1,35 +1,39 @@
-﻿namespace _Game.Scripts.Core.Services
+using _Game.Scripts.Core;
+using _Game.Scripts.Logic;
+
+namespace _Game.Scripts.Core.Services
 {
+    /// <summary>
+    /// Registry mỏng cho các service thật sự cần truy cập chéo layer.
+    /// Giữ lại các service dùng chung ổn định; các hệ gameplay như placement dùng trực tiếp class runtime.
+    /// </summary>
     public static class GameServices
     {
-        public static IGameStateService GameState { get; private set; }
-        public static IScoreService Score { get; private set; }
-        public static IAudioService Audio { get; private set; }
-        public static IBoardQueryService BoardQuery { get; private set; }
-        public static IBlockPlacementService Placement { get; private set; }
+        #region Services
         public static IGameSaveService Save { get; private set; }
-        public static IGameBalanceService Balance { get; private set; }
-        public static IGameSessionService Session { get; private set; }
+        public static GameBalanceConfig Balance { get; private set; }
+        #endregion
 
-        public static void RegisterGameState(IGameStateService service) => GameState = service;
-        public static void RegisterScore(IScoreService service) => Score = service;
-        public static void RegisterAudio(IAudioService service) => Audio = service;
-        public static void RegisterBoardQuery(IBoardQueryService service) => BoardQuery = service;
-        public static void RegisterPlacement(IBlockPlacementService service) => Placement = service;
+        #region Compatibility Properties
+        public static GameManager GameState => GameManager.Instance;
+        public static GameManager Session => GameManager.Instance;
+        public static ScoreManager Score => ScoreManager.Instance;
+        public static AudioManager Audio => AudioManager.Instance;
+        public static GridManager BoardQuery => GridManager.Instance;
+        #endregion
+
+        #region Register
         public static void RegisterSave(IGameSaveService service) => Save = service;
-        public static void RegisterBalance(IGameBalanceService service) => Balance = service;
-        public static void RegisterSession(IGameSessionService service) => Session = service;
+        public static void RegisterBalance(GameBalanceConfig service) => Balance = service;
 
-        public static void ClearAll()
-        {
-            GameState = null;
-            Score = null;
-            Audio = null;
-            BoardQuery = null;
-            Placement = null;
-            Save = null;
-            Balance = null;
-            Session = null;
-        }
+        // Compatibility no-op để các script cũ/Prefab không vỡ khi migrate.
+        // Sau khi scene ổn định có thể xóa dần các API no-op này.
+        public static void RegisterGameState(GameManager service) { }
+        public static void RegisterSession(GameManager service) { }
+        public static void RegisterScore(ScoreManager service) { }
+        public static void RegisterAudio(AudioManager service) { }
+        public static void RegisterBoardQuery(GridManager service) { }
+        public static void RegisterMode(object service) { }
+        #endregion
     }
 }

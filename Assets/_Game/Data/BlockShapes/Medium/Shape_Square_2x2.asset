@@ -12,6 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 14695ee84413e37429d312ed38bc3459, type: 3}
   m_Name: Shape_Square_2x2
   m_EditorClassIdentifier: Assembly-CSharp::_Game.Scripts.Data.BlockData
+  _id: square_2x2
+  _displayName: Square 2x2
   tier: 1
   columns: 2
   rows: 2

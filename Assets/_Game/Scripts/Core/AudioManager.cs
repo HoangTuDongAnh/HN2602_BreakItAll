@@ -4,7 +4,7 @@ using _Game.Scripts.Core.Services;
 
 namespace _Game.Scripts.Core
 {
-    public class AudioManager : MonoBehaviour, IAudioService
+    public class AudioManager : MonoBehaviour
     {
         #region Singleton
         public static AudioManager Instance { get; private set; }
@@ -87,7 +87,7 @@ namespace _Game.Scripts.Core
         }
         #endregion
 
-        #region IAudioService
+        #region Audio API
         public void PlayButtonClick() => PlaySfx(_clickClip);
         public void PlayPlaceBlock() => PlaySfx(_placeBlockClip);
         public void PlayLineClear() => PlaySfx(_clearLineClip);

@@ -1,16 +1,20 @@
-﻿using _Game.Scripts.Logic;
+using System;
+using _Game.Scripts.Logic;
 
 namespace _Game.Scripts.Logic.Placement
 {
     public class BoardState
     {
         private readonly GridCell[,] _cells;
+        private readonly Func<GridCell, bool> _blocksPlacement;
+
         public int Width { get; }
         public int Height { get; }
 
-        public BoardState(GridCell[,] cells, int width, int height)
+        public BoardState(GridCell[,] cells, int width, int height, Func<GridCell, bool> blocksPlacement = null)
         {
             _cells = cells;
+            _blocksPlacement = blocksPlacement;
             Width = width;
             Height = height;
         }
@@ -22,7 +26,8 @@ namespace _Game.Scripts.Logic.Placement
 
         public bool IsOccupied(GridCoord coord)
         {
-            return _cells[coord.X, coord.Y].IsOccupied;
+            GridCell cell = _cells[coord.X, coord.Y];
+            return cell.IsOccupied || (_blocksPlacement != null && _blocksPlacement(cell));
         }
     }
 }

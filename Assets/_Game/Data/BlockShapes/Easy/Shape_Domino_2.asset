@@ -12,6 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 14695ee84413e37429d312ed38bc3459, type: 3}
   m_Name: Shape_Domino_2
   m_EditorClassIdentifier: Assembly-CSharp::_Game.Scripts.Data.BlockData
+  _id: domino_2
+  _displayName: Domino 2
   tier: 0
   columns: 2
   rows: 1

@@ -9,33 +9,38 @@ namespace _Game.Scripts.View
         [SerializeField] private float _moveSpeed = 3f;
         [SerializeField] private float _fadeSpeed = 2f;
         [SerializeField] private float _lifeTime = 1.0f;
+        [SerializeField] private float _punchScale = 1.18f;
 
         private Color _startColor;
         private float _timer;
+        private Vector3 _baseScale;
 
         public void Init(string content, Color color, float sizeScale = 1f)
         {
+            if (_textMesh == null) return;
+
             _textMesh.text = content;
             _textMesh.color = color;
             _startColor = color;
-            _timer = 0;
-            
-            transform.localScale = Vector3.one * sizeScale;
+            _timer = 0f;
+
+            _baseScale = Vector3.one * sizeScale;
+            transform.localScale = _baseScale * _punchScale;
         }
 
         private void Update()
         {
-            // 1. Bay lên
             transform.position += Vector3.up * _moveSpeed * Time.deltaTime;
 
-            // 2. Mờ dần (Fade Alpha)
             _timer += Time.deltaTime;
-            float progress = _timer / _lifeTime;
+            float progress = Mathf.Clamp01(_timer / Mathf.Max(0.01f, _lifeTime));
             float alpha = Mathf.Lerp(1f, 0f, progress);
-            
-            _textMesh.color = new Color(_startColor.r, _startColor.g, _startColor.b, alpha);
+            float scaleT = Mathf.Clamp01(progress * 4f);
+            transform.localScale = Vector3.Lerp(_baseScale * _punchScale, _baseScale, scaleT);
 
-            // 3. Tự hủy
+            if (_textMesh != null)
+                _textMesh.color = new Color(_startColor.r, _startColor.g, _startColor.b, alpha);
+
             if (_timer >= _lifeTime) Destroy(gameObject);
         }
     }

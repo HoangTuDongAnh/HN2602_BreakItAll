@@ -12,70 +12,53 @@ namespace _Game.Editor
         private void OnEnable()
         {
             _targetBlock = (BlockData)target;
-            if (_targetBlock.boardData == null || _targetBlock.boardData.Count == 0)
-            {
-                _targetBlock.ClearData();
-            }
+            EnsureShapeData();
         }
 
         public override void OnInspectorGUI()
         {
-            DrawDefaultInspector();
+            EnsureShapeData();
 
-            EditorGUILayout.Space(10);
-            EditorGUILayout.LabelField("SHAPE TEMPLATE EDITOR", EditorStyles.boldLabel);
-            EditorGUILayout.HelpBox("Left Click to Toggle Block ON/OFF.", MessageType.Info);
+            BlockShapeEditorGUI.Draw(_targetBlock, serializedObject);
 
-            EditorGUILayout.Space(5);
-
-            #region Grid Drawing
-            // Draw 5x5 Grid
-            for (int y = _targetBlock.rows - 1; y >= 0; y--)
+            EditorGUILayout.Space(8f);
+            using (new EditorGUILayout.HorizontalScope())
             {
-                EditorGUILayout.BeginHorizontal();
-                GUILayout.FlexibleSpace();
-
-                for (int x = 0; x < _targetBlock.columns; x++)
+                if (GUILayout.Button("Save Asset"))
                 {
-                    DrawCellButton(x, y);
+                    EditorUtility.SetDirty(_targetBlock);
+                    AssetDatabase.SaveAssets();
                 }
 
-                GUILayout.FlexibleSpace();
-                EditorGUILayout.EndHorizontal();
+                if (GUILayout.Button("Open Shape Browser"))
+                    BlockShapeBrowserWindow.Open(_targetBlock);
             }
-            #endregion
+        }
 
-            #region Utilities
-            EditorGUILayout.Space(10);
-            if (GUILayout.Button("Reset Shape", GUILayout.Height(30)))
+        private void EnsureShapeData()
+        {
+            if (_targetBlock == null) return;
+
+            int clampedColumns = Mathf.Clamp(_targetBlock.columns, 1, BlockData.MaxShapeSize);
+            int clampedRows = Mathf.Clamp(_targetBlock.rows, 1, BlockData.MaxShapeSize);
+            if (clampedColumns != _targetBlock.columns || clampedRows != _targetBlock.rows)
             {
+                Undo.RecordObject(_targetBlock, "Clamp Shape Size");
+                _targetBlock.columns = clampedColumns;
+                _targetBlock.rows = clampedRows;
+                EditorUtility.SetDirty(_targetBlock);
+            }
+
+            if (_targetBlock.boardData == null || _targetBlock.boardData.Count == 0)
+            {
+                Undo.RecordObject(_targetBlock, "Initialize Shape Data");
                 _targetBlock.ClearData();
                 EditorUtility.SetDirty(_targetBlock);
             }
-            #endregion
-
-            if (GUI.changed) EditorUtility.SetDirty(_targetBlock);
-        }
-
-        private void DrawCellButton(int x, int y)
-        {
-            CellData cell = _targetBlock.GetCell(x, y);
-            if (cell == null) return;
-
-            // Simple Logic: Gray = Empty, Blue = Occupied
-            Color btnColor = cell.isOccupied ? new Color(0.4f, 0.6f, 1f) : Color.gray;
-            GUI.backgroundColor = btnColor;
-
-            if (GUILayout.Button("", GUILayout.Width(40), GUILayout.Height(40)))
+            else
             {
-                // Toggle Logic
-                cell.isOccupied = !cell.isOccupied;
-                // Always reset properties to default when editing shape
-                cell.cellType = CellType.Normal;
-                cell.toolType = ToolType.None;
+                _targetBlock.EnsureDataSize();
             }
-
-            GUI.backgroundColor = Color.white;
         }
     }
 }

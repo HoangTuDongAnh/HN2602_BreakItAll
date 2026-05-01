@@ -12,6 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 14695ee84413e37429d312ed38bc3459, type: 3}
   m_Name: Shape_Line_4
   m_EditorClassIdentifier: Assembly-CSharp::_Game.Scripts.Data.BlockData
+  _id: line_4
+  _displayName: Line 4
   tier: 2
   columns: 4
   rows: 1
