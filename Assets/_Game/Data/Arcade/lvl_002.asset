@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: lvl_002
   m_EditorClassIdentifier: Assembly-CSharp::_Game.Scripts.Modes.Levels.LevelDefinition
   _levelId: level_002
-  _worldId: arcade
+  _worldId: world_01
   _orderIndex: 2
-  _displayName: Timed 1
+  _displayName: Gem Row
   _boardWidth: 9
   _boardHeight: 9
   _boardCells:
@@ -24,8 +24,17 @@ MonoBehaviour:
     occupiedAtStart: 0
     occupiedCellType: 1
     occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-    itemType: 2
-    itemId: time_bonus
+    itemType: 1
+    itemId: gem
+    markerTag: 
+    targetPatternFilled: 0
+  - x: 4
+    y: 4
+    occupiedAtStart: 0
+    occupiedCellType: 1
+    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    itemType: 1
+    itemId: gem
     markerTag: 
     targetPatternFilled: 0
   - x: 7
@@ -33,33 +42,53 @@ MonoBehaviour:
     occupiedAtStart: 0
     occupiedCellType: 1
     occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    itemType: 1
+    itemId: gem
+    markerTag: 
+    targetPatternFilled: 0
+  - x: 4
+    y: 1
+    occupiedAtStart: 0
+    occupiedCellType: 1
+    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
     itemType: 2
     itemId: time_bonus
     markerTag: 
     targetPatternFilled: 0
-  _levelType: 1
+  _levelType: 2
   _objectiveDefinition:
-    targetScore: 800
-    bonusTimeSeconds: 8
+    targetScore: 1000
+    bonusTimeSeconds: 7
     targetItemId: gem
-    targetGemCount: 5
+    targetGemCount: 3
     targetPatternId: 
     helperToolCount: 0
     requireExactTargetShape: 1
     providedShapeIds: []
     allowRotation: 1
-    allowMovePlacedBlocks: 1
     requireUseAllProvidedShapes: 1
   _timerRule:
-    totalTimeSeconds: 80
+    totalTimeSeconds: 105
     failWhenTimeEnds: 1
     startTimerOnSessionStart: 1
   _spawnProfileOverride:
-    profileId: timed_intro
+    profileId: collect_intro
     queueSizeOverride: 3
-    difficultyBias: -0.1
-    allowedShapeIds: []
+    difficultyBias: -0.3
+    allowedShapeIds:
+    - dot_1x1
+    - domino_2
+    - corner_small
+    - line_3
+    - square_2x2
+    - l_normal
     blockedShapeIds: []
     preferredTags: []
     blockedTags: []
+  _toolRule:
+    _useCustomRules: 0
+    _allowTools: 1
+    _allowSingleCell: 1
+    _allowRemoveSpawnBlock: 1
+    _allowBombSquare: 1
   _rewardCoins: 10

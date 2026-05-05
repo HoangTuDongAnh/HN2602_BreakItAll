@@ -46,7 +46,7 @@ namespace _Game.Scripts.View.UI.Dialogs
         private void OnEnable()
         {
             // --- 1. Xử lý Layout (Ẩn hiện Home & Di chuyển nút) ---
-            bool isAtHome = GameManager.Instance.CurrentState == GameState.Home;
+            bool isAtHome = GameManager.Instance == null || GameManager.Instance.CurrentState == GameState.Home;
 
             // A. Ẩn/Hiện nút Home
             if (_btnHomeObj != null)
@@ -90,10 +90,10 @@ namespace _Game.Scripts.View.UI.Dialogs
         }
 
         #region Realtime Events
-        private void OnMusicSliderChanged(float value) => AudioManager.Instance.SetMusicVolume(value);
-        private void OnSoundSliderChanged(float value) => AudioManager.Instance.SetSfxVolume(value);
-        private void OnMusicToggleChanged(bool isOn) => AudioManager.Instance.ToggleMusic(isOn);
-        private void OnSoundToggleChanged(bool isOn) => AudioManager.Instance.ToggleSfx(isOn);
+        private void OnMusicSliderChanged(float value) => AudioManager.Instance?.SetMusicVolume(value);
+        private void OnSoundSliderChanged(float value) => AudioManager.Instance?.SetSfxVolume(value);
+        private void OnMusicToggleChanged(bool isOn) => AudioManager.Instance?.ToggleMusic(isOn);
+        private void OnSoundToggleChanged(bool isOn) => AudioManager.Instance?.ToggleSfx(isOn);
         #endregion
 
         #region Actions
@@ -128,7 +128,7 @@ namespace _Game.Scripts.View.UI.Dialogs
 
         public void OnHomeClicked()
         {
-            if (GameManager.Instance.CurrentState == GameState.Home)
+            if (GameManager.Instance == null || GameManager.Instance.CurrentState == GameState.Home)
             {
                 OnCloseClicked();
                 return;
@@ -139,7 +139,7 @@ namespace _Game.Scripts.View.UI.Dialogs
                 UIManager.Instance.ShowAlertDialog(() => 
                 {
                     OnCloseClicked(); 
-                    GameManager.Instance.EndGame();
+                    GameManager.Instance?.EndGame();
                 });
             }
         }

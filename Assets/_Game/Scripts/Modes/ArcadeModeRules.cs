@@ -19,7 +19,7 @@ namespace _Game.Scripts.Modes
         [Header("Fallback Level")]
         [SerializeField] private LevelDefinition _defaultLevel;
 
-        [Header("Fallback Time Objective")]
+        [Header("Fallback Score Objective")]
         [SerializeField] private int _fallbackTargetScore = 1000;
         #endregion
 
@@ -52,7 +52,7 @@ namespace _Game.Scripts.Modes
             if (!_timerRunning) return;
             if (GameManager.Instance == null || !GameManager.Instance.IsGameRunning()) return;
             if (GameManager.Instance.CurrentModeType != GameModeType.Arcade) return;
-            if (_activeLevel == null || _activeLevel.LevelType != ArcadeLevelType.Timed) return;
+            if (_activeLevel == null || !_activeLevel.UsesTimer) return;
 
             _remainingTime = Mathf.Max(0f, _remainingTime - Time.deltaTime);
             GameManager.Instance.ReportTimerUpdated(_remainingTime, _totalTime);
@@ -65,7 +65,7 @@ namespace _Game.Scripts.Modes
         #region Board Hooks
         private void HandleBoardResolved(BoardResolveResult result)
         {
-            if (!_timerRunning || _activeLevel == null || _activeLevel.LevelType != ArcadeLevelType.Timed) return;
+            if (!_timerRunning || _activeLevel == null || !_activeLevel.UsesTimer) return;
             if (result == null || !result.HasCollectedItems) return;
 
             int bonusCount = 0;
@@ -135,24 +135,30 @@ namespace _Game.Scripts.Modes
 
             switch (_activeLevel.LevelType)
             {
-                case ArcadeLevelType.Timed:
+                case ArcadeLevelType.Score:
                     TimerRuleDefinition timer = _activeLevel.TimerRule;
-                    return new TimedObjective(
+                    return new ScoreObjective(
                         objective != null ? objective.targetScore : _fallbackTargetScore,
                         timer == null || timer.failWhenTimeEnds
                     );
 
                 case ArcadeLevelType.Collectable:
+                    TimerRuleDefinition collectableTimer = _activeLevel.TimerRule;
                     return new CollectItemsObjective(
                         objective != null ? objective.targetItemId : "gem",
-                        objective != null ? objective.targetGemCount : 1
+                        objective != null ? objective.targetGemCount : 1,
+                        collectableTimer != null && collectableTimer.failWhenTimeEnds
                     );
 
                 case ArcadeLevelType.Shape:
                     return new ShapeObjective(objective == null || objective.requireExactTargetShape);
 
-                case ArcadeLevelType.Fill:
-                    return new FillObjective(objective == null || objective.requireUseAllProvidedShapes);
+                case ArcadeLevelType.Puzzle:
+                    TimerRuleDefinition puzzleTimer = _activeLevel.TimerRule;
+                    return new PuzzleObjective(
+                        objective == null || objective.requireUseAllProvidedShapes,
+                        puzzleTimer != null && puzzleTimer.failWhenTimeEnds
+                    );
 
                 default:
                     return new NoObjective();
@@ -163,7 +169,7 @@ namespace _Game.Scripts.Modes
         #region Helpers
         private void StartTimerIfNeeded()
         {
-            if (_activeLevel == null || _activeLevel.LevelType != ArcadeLevelType.Timed)
+            if (_activeLevel == null || !_activeLevel.UsesTimer)
                 return;
 
             TimerRuleDefinition timer = _activeLevel.TimerRule;
@@ -181,13 +187,15 @@ namespace _Game.Scripts.Modes
         {
             if (grid == null || level == null) return;
 
-            bool isFill = level.LevelType == ArcadeLevelType.Fill;
+            bool isShape = level.LevelType == ArcadeLevelType.Shape;
+            bool isPuzzle = level.LevelType == ArcadeLevelType.Puzzle;
             bool hasTargetMask = grid.HasTargetPatternCells();
 
             // Shape keeps normal line clears and allows temporary placement outside the target.
-            // Fill is the strict puzzle type: no line clear and placement is clipped to the target mask.
-            grid.SetLineResolveEnabled(!isFill);
-            grid.SetTargetPatternPlacementOnly(isFill && hasTargetMask);
+            // Puzzle is the strict type: no line clear and placement is clipped to the target mask.
+            grid.SetLineResolveEnabled(!isPuzzle);
+            grid.SetTargetPatternPlacementOnly(isPuzzle && hasTargetMask);
+            grid.SetTargetPatternOverlayVisible(!isShape);
         }
         #endregion
     }

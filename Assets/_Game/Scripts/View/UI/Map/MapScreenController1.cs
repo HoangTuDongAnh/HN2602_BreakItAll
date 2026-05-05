@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using _Game.Scripts.Core;
 using _Game.Scripts.Core.Arcade;
 using _Game.Scripts.Modes.Map;
+using _Game.Scripts.View.UI;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -29,6 +30,8 @@ namespace _Game.Scripts.View.UI.Map
         [SerializeField] private MapPathLineView _linePrefab;
         [SerializeField] private TMP_Text _titleText;
         [SerializeField] private TMP_Text _subtitleText;
+        [SerializeField] private Button _backToHomeButton;
+        [SerializeField] private bool _useLevelPreview = true;
         #endregion
 
         #region Inspector - Layout
@@ -81,10 +84,32 @@ namespace _Game.Scripts.View.UI.Map
         #endregion
 
         #region Unity Lifecycle
+        private void Awake()
+        {
+            CacheOptionalReferences();
+            WireButtons();
+        }
+
         private void OnEnable()
         {
+            CacheOptionalReferences();
+            WireButtons();
             Rebuild();
         }
+#if UNITY_EDITOR
+        private void OnValidate()
+        {
+            if (UnityEditor.EditorApplication.isPlayingOrWillChangePlaymode)
+                return;
+
+            UnityEditor.EditorApplication.delayCall += () =>
+            {
+                if (this == null) return;
+                CacheOptionalReferences();
+                UnityEditor.EditorUtility.SetDirty(this);
+            };
+        }
+#endif
         #endregion
 
         #region Public API
@@ -115,6 +140,12 @@ namespace _Game.Scripts.View.UI.Map
         {
             if (node == null || node.Level == null) return;
             if (!ArcadeProgressService.IsNodeUnlocked(_mapDefinition, node)) return;
+
+            if (_useLevelPreview && UIManager.Instance != null)
+            {
+                UIManager.Instance.ShowLevelPreview(_mapDefinition, node);
+                return;
+            }
 
             ArcadeSession.SelectLevel(_mapDefinition, node);
             GameManager.Instance?.StartArcadeLevel(node.Level);
@@ -359,6 +390,37 @@ namespace _Game.Scripts.View.UI.Map
 
             if (_scrollRect == null)
                 _scrollRect = GetComponentInChildren<ScrollRect>(true);
+
+            if (_backToHomeButton == null)
+                _backToHomeButton = FindButton("Button_BackToMenu") ?? FindButton("Button_BackHome") ?? FindButton("Button_Home");
+        }
+
+        private void WireButtons()
+        {
+            if (_backToHomeButton == null) return;
+
+            _backToHomeButton.onClick.RemoveListener(BackToHome);
+            _backToHomeButton.onClick.AddListener(BackToHome);
+        }
+
+        private Button FindButton(string objectName)
+        {
+            Transform child = FindChild(transform, objectName);
+            return child != null ? child.GetComponent<Button>() : null;
+        }
+
+        private static Transform FindChild(Transform root, string objectName)
+        {
+            if (root == null || string.IsNullOrEmpty(objectName)) return null;
+            if (root.name == objectName) return root;
+
+            for (int i = 0; i < root.childCount; i++)
+            {
+                Transform result = FindChild(root.GetChild(i), objectName);
+                if (result != null) return result;
+            }
+
+            return null;
         }
 
         private void ApplyScreenStyle()

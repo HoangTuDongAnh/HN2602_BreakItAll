@@ -1,7 +1,8 @@
 using System;
 using _Game.Scripts.Core;
-using _Game.Scripts.Core.Services;
+using _Game.Scripts.Core.Arcade;
 using _Game.Scripts.Modes;
+using _Game.Scripts.Modes.Levels;
 using UnityEngine;
 
 namespace _Game.Scripts.Logic.Tools
@@ -16,7 +17,9 @@ namespace _Game.Scripts.Logic.Tools
         #region Events
         public static event Action<GameplayToolType> OnActiveToolChanged;
         public static event Action<GameplayToolType, int> OnToolInventoryChanged;
+        public static event Action<GameplayToolType, bool, string> OnToolAvailabilityChanged;
         public static event Action<GameplayToolType, string> OnToolPopupRequested;
+        public static event Action<GameplayToolType, string, int, bool, bool> OnToolPurchasePopupRequested;
         public static event Action OnToolPopupHidden;
         #endregion
 
@@ -44,6 +47,12 @@ namespace _Game.Scripts.Logic.Tools
         [SerializeField] private int _removeSpawnBlockCount = 3;
         [SerializeField] private int _bombSquareCount = 3;
 
+        [Header("Tool Shop")]
+        [SerializeField] private bool _cheatToolPurchase;
+        [Min(0)] [SerializeField] private int _singleCellPrice = 30;
+        [Min(0)] [SerializeField] private int _removeSpawnBlockPrice = 45;
+        [Min(0)] [SerializeField] private int _bombSquarePrice = 60;
+
         [Header("Tool Block Visual")]
         [SerializeField] private Color _singleCellColor = Color.white;
         [SerializeField] private Color _bombBlockColor = new Color(1f, 0.85f, 0.2f, 1f);
@@ -51,9 +60,7 @@ namespace _Game.Scripts.Logic.Tools
         #endregion
 
         #region Runtime
-        private const string SingleCellCountKey = "tool_single_cell_count";
-        private const string RemoveSpawnBlockCountKey = "tool_remove_spawn_block_count";
-        private const string BombSquareCountKey = "tool_bomb_square_count";
+        private readonly ToolInventoryService _inventory = new ToolInventoryService();
 
         public GameplayToolType ActiveTool { get; private set; } = GameplayToolType.None;
         public bool HasActiveTool => ActiveTool != GameplayToolType.None;
@@ -63,18 +70,31 @@ namespace _Game.Scripts.Logic.Tools
         #endregion
 
         #region Unity Lifecycle
+        private void OnEnable()
+        {
+            GameEvents.OnArcadeLevelStarted += HandleArcadeLevelStarted;
+            GameEvents.OnGameStarted += HandleGameStarted;
+        }
+
+        private void OnDisable()
+        {
+            GameEvents.OnArcadeLevelStarted -= HandleArcadeLevelStarted;
+            GameEvents.OnGameStarted -= HandleGameStarted;
+        }
+
         private void Start()
         {
             LoadInventory();
             BroadcastInventory();
             BroadcastActiveTool();
+            BroadcastAvailability();
         }
 
         private void Update()
         {
             if (!HasActiveTool) return;
 
-            if (!CanUseToolNow())
+            if (!CanUseToolNow(ActiveTool))
             {
                 CancelActiveTool();
                 return;
@@ -95,7 +115,11 @@ namespace _Game.Scripts.Logic.Tools
                 return;
             }
 
-            if (!CanUseToolNow()) return;
+            if (!CanUseToolNow(toolType))
+            {
+                OnToolPopupRequested?.Invoke(toolType, GetToolDisabledReason(toolType));
+                return;
+            }
 
             // Neu bam lai tool dang chon thi coi nhu huy.
             if (ActiveTool == toolType)
@@ -160,58 +184,59 @@ namespace _Game.Scripts.Logic.Tools
 
         public void AddOneTool(GameplayToolType toolType)
         {
-            switch (toolType)
+            AddTool(toolType, 1);
+        }
+
+        public void RequestBuyTool(GameplayToolType toolType)
+        {
+            if (toolType == GameplayToolType.None) return;
+
+            int price = GetToolPrice(toolType);
+            bool isCheat = _cheatToolPurchase;
+            bool canBuy = isCheat || ArcadeProgressService.GetCoins() >= price;
+            string message = BuildPurchaseMessage(toolType, price, isCheat, canBuy);
+
+            OnToolPurchasePopupRequested?.Invoke(toolType, message, price, isCheat, canBuy);
+        }
+
+        public bool TryBuyTool(GameplayToolType toolType)
+        {
+            if (toolType == GameplayToolType.None) return false;
+
+            int price = GetToolPrice(toolType);
+            if (!_cheatToolPurchase)
             {
-                case GameplayToolType.PlaceSingleCell:
-                    _singleCellCount++;
-                    break;
-                case GameplayToolType.RemoveSpawnBlock:
-                    _removeSpawnBlockCount++;
-                    break;
-                case GameplayToolType.BombSquare:
-                    _bombSquareCount++;
-                    break;
+                int coins = ArcadeProgressService.GetCoins();
+                if (coins < price)
+                {
+                    RequestBuyTool(toolType);
+                    return false;
+                }
+
+                ArcadeProgressService.SetCoins(coins - price);
             }
 
-            BroadcastInventory();
-            SaveInventory();
+            AddTool(toolType, 1);
+            HideSelectionPopup();
+            return true;
+        }
+
+        public void CancelToolPurchase()
+        {
+            HideSelectionPopup();
         }
 
         public int GetToolCount(GameplayToolType toolType)
         {
-            switch (toolType)
-            {
-                case GameplayToolType.PlaceSingleCell:
-                    return _singleCellCount;
-                case GameplayToolType.RemoveSpawnBlock:
-                    return _removeSpawnBlockCount;
-                case GameplayToolType.BombSquare:
-                    return _bombSquareCount;
-                default:
-                    return 0;
-            }
+            return _inventory.GetCount(toolType);
         }
 
         public bool TryConsumeActiveTool()
         {
             if (!HasActiveTool) return false;
 
-            GameplayToolType tool = ActiveTool;
-            if (_consumeToolOnSuccess)
-            {
-                switch (tool)
-                {
-                    case GameplayToolType.PlaceSingleCell:
-                        _singleCellCount = Mathf.Max(0, _singleCellCount - 1);
-                        break;
-                    case GameplayToolType.RemoveSpawnBlock:
-                        _removeSpawnBlockCount = Mathf.Max(0, _removeSpawnBlockCount - 1);
-                        break;
-                    case GameplayToolType.BombSquare:
-                        _bombSquareCount = Mathf.Max(0, _bombSquareCount - 1);
-                        break;
-                }
-            }
+            if (_consumeToolOnSuccess && !_inventory.TryConsume(ActiveTool))
+                return false;
 
             BroadcastInventory();
             SaveInventory();
@@ -251,14 +276,68 @@ namespace _Game.Scripts.Logic.Tools
         #endregion
 
         #region Helpers
-        private bool CanUseToolNow()
+        public bool IsToolAllowed(GameplayToolType toolType)
+        {
+            return CanUseToolNow(toolType);
+        }
+
+        public string GetToolUnavailableReason(GameplayToolType toolType)
+        {
+            return GetToolDisabledReason(toolType);
+        }
+
+        private bool CanUseToolNow(GameplayToolType toolType = GameplayToolType.None)
         {
             GameManager manager = GameManager.Instance;
             if (manager == null) return true;
             if (!manager.IsInputAllowed()) return false;
-            if (!_allowToolsInArcade && manager.CurrentModeType != GameModeType.Endless)
+
+            if (manager.CurrentModeType == GameModeType.Endless)
+                return true;
+
+            if (!_allowToolsInArcade)
                 return false;
-            return true;
+
+            LevelDefinition activeLevel = manager.ActiveArcadeLevel;
+            if (activeLevel == null)
+                return true;
+
+            GameplayToolType checkedTool = toolType == GameplayToolType.None ? ActiveTool : toolType;
+            if (checkedTool == GameplayToolType.None)
+                return activeLevel.ToolRule != null && activeLevel.ToolRule.IsToolAllowed(activeLevel.LevelType, GameplayToolType.PlaceSingleCell)
+                       || activeLevel.ToolRule != null && activeLevel.ToolRule.IsToolAllowed(activeLevel.LevelType, GameplayToolType.RemoveSpawnBlock)
+                       || activeLevel.ToolRule != null && activeLevel.ToolRule.IsToolAllowed(activeLevel.LevelType, GameplayToolType.BombSquare);
+
+            return activeLevel.ToolRule == null || activeLevel.ToolRule.IsToolAllowed(activeLevel.LevelType, checkedTool);
+        }
+
+        private string GetToolDisabledReason(GameplayToolType toolType)
+        {
+            GameManager manager = GameManager.Instance;
+            if (manager == null) return "Tool unavailable";
+            if (!manager.IsInputAllowed()) return "Cannot use tools right now";
+            if (manager.CurrentModeType != GameModeType.Endless && !_allowToolsInArcade)
+                return "Tools are disabled in Arcade";
+
+            LevelDefinition activeLevel = manager.ActiveArcadeLevel;
+            if (activeLevel == null || activeLevel.ToolRule == null)
+                return "Tool unavailable";
+
+            string reason = activeLevel.ToolRule.GetDisabledReason(activeLevel.LevelType, toolType);
+            return string.IsNullOrEmpty(reason) ? "Tool unavailable" : reason;
+        }
+
+        private void HandleArcadeLevelStarted(LevelDefinition level)
+        {
+            if (HasActiveTool && (level == null || level.ToolRule == null || !level.ToolRule.IsToolAllowed(level.LevelType, ActiveTool)))
+                CancelActiveTool();
+
+            BroadcastAvailability();
+        }
+
+        private void HandleGameStarted()
+        {
+            BroadcastAvailability();
         }
 
         private void ShowSelectionPopup(GameplayToolType toolType)
@@ -288,11 +367,60 @@ namespace _Game.Scripts.Logic.Tools
             OnToolPopupHidden?.Invoke();
         }
 
+        private void AddTool(GameplayToolType toolType, int amount)
+        {
+            _inventory.Add(toolType, amount);
+            BroadcastInventory();
+            SaveInventory();
+        }
+
+        public int GetToolPrice(GameplayToolType toolType)
+        {
+            switch (toolType)
+            {
+                case GameplayToolType.PlaceSingleCell:
+                    return Mathf.Max(0, _singleCellPrice);
+                case GameplayToolType.RemoveSpawnBlock:
+                    return Mathf.Max(0, _removeSpawnBlockPrice);
+                case GameplayToolType.BombSquare:
+                    return Mathf.Max(0, _bombSquarePrice);
+                default:
+                    return 0;
+            }
+        }
+
+        private string BuildPurchaseMessage(GameplayToolType toolType, int price, bool isCheat, bool canBuy)
+        {
+            string toolName = GetToolDisplayName(toolType);
+            if (isCheat)
+                return $"Cheat enabled\nGet 1 {toolName} for free?";
+
+            if (!canBuy)
+                return $"Not enough coins\n{toolName} costs {price} coins";
+
+            return $"Buy 1 {toolName} for {price} coins?";
+        }
+
+        private string GetToolDisplayName(GameplayToolType toolType)
+        {
+            switch (toolType)
+            {
+                case GameplayToolType.PlaceSingleCell:
+                    return "Single";
+                case GameplayToolType.RemoveSpawnBlock:
+                    return "Remove";
+                case GameplayToolType.BombSquare:
+                    return "Bomb";
+                default:
+                    return "Tool";
+            }
+        }
+
         private void BroadcastInventory()
         {
-            OnToolInventoryChanged?.Invoke(GameplayToolType.PlaceSingleCell, _singleCellCount);
-            OnToolInventoryChanged?.Invoke(GameplayToolType.RemoveSpawnBlock, _removeSpawnBlockCount);
-            OnToolInventoryChanged?.Invoke(GameplayToolType.BombSquare, _bombSquareCount);
+            OnToolInventoryChanged?.Invoke(GameplayToolType.PlaceSingleCell, _inventory.GetCount(GameplayToolType.PlaceSingleCell));
+            OnToolInventoryChanged?.Invoke(GameplayToolType.RemoveSpawnBlock, _inventory.GetCount(GameplayToolType.RemoveSpawnBlock));
+            OnToolInventoryChanged?.Invoke(GameplayToolType.BombSquare, _inventory.GetCount(GameplayToolType.BombSquare));
         }
 
         private void BroadcastActiveTool()
@@ -300,25 +428,28 @@ namespace _Game.Scripts.Logic.Tools
             OnActiveToolChanged?.Invoke(ActiveTool);
         }
 
+        private void BroadcastAvailability()
+        {
+            BroadcastToolAvailability(GameplayToolType.PlaceSingleCell);
+            BroadcastToolAvailability(GameplayToolType.RemoveSpawnBlock);
+            BroadcastToolAvailability(GameplayToolType.BombSquare);
+        }
+
+        private void BroadcastToolAvailability(GameplayToolType toolType)
+        {
+            bool allowed = CanUseToolNow(toolType);
+            string reason = allowed ? string.Empty : GetToolDisabledReason(toolType);
+            OnToolAvailabilityChanged?.Invoke(toolType, allowed, reason);
+        }
+
         private void LoadInventory()
         {
-            IGameSaveService save = GameServices.Save;
-            if (save == null) return;
-
-            _singleCellCount = Mathf.Max(0, save.GetInt(SingleCellCountKey, _singleCellCount));
-            _removeSpawnBlockCount = Mathf.Max(0, save.GetInt(RemoveSpawnBlockCountKey, _removeSpawnBlockCount));
-            _bombSquareCount = Mathf.Max(0, save.GetInt(BombSquareCountKey, _bombSquareCount));
+            _inventory.Load(_singleCellCount, _removeSpawnBlockCount, _bombSquareCount);
         }
 
         private void SaveInventory()
         {
-            IGameSaveService save = GameServices.Save;
-            if (save == null) return;
-
-            save.SetInt(SingleCellCountKey, _singleCellCount);
-            save.SetInt(RemoveSpawnBlockCountKey, _removeSpawnBlockCount);
-            save.SetInt(BombSquareCountKey, _bombSquareCount);
-            save.Save();
+            _inventory.Save();
         }
         #endregion
     }

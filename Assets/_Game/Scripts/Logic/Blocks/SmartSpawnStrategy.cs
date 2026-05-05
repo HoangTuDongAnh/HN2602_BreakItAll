@@ -58,11 +58,17 @@ namespace _Game.Scripts.Logic
         [Header("Safety")]
         [SerializeField] private bool _guaranteeAtLeastOnePlayable = true;
         [Range(0f, 1f)] [SerializeField] private float _unplayableCandidatePenalty = 0.05f;
+
+        [Header("Debug")]
+        [Tooltip("Khi bật, strategy sẽ lưu report của lần spawn gần nhất để debug/tuning.")]
+        [SerializeField] private bool _captureDebugInfo;
+        [Min(1)] [SerializeField] private int _maxDebugCandidates = 40;
         #endregion
 
         #region Runtime
         private readonly Queue<string> _recentShapeIds = new Queue<string>();
         private readonly List<BlockData> _bag = new List<BlockData>();
+        private SpawnDebugReport _lastDebugReport;
         #endregion
 
         #region Public API
@@ -121,6 +127,14 @@ namespace _Game.Scripts.Logic
         {
             _recentShapeIds.Clear();
             _bag.Clear();
+            _lastDebugReport = null;
+        }
+
+        public SpawnDebugReport LastDebugReport => _lastDebugReport;
+
+        public SpawnDebugReport BuildDebugReport(int count, SpawnSelectionContext context, float fillRate, int maxCandidates = 40)
+        {
+            return BuildDebugReportInternal(count, context, fillRate, Mathf.Max(1, maxCandidates), mutateRuntimeState: false);
         }
         #endregion
 
@@ -133,16 +147,32 @@ namespace _Game.Scripts.Logic
 
             List<BlockData> candidatePool = BuildFilteredPool(context);
             if (candidatePool.Count == 0)
+            {
+                if (_captureDebugInfo)
+                    _lastDebugReport = BuildEmptyDebugReport(safeCount, context, fillRate, "No candidate pool after filters.");
                 return result;
+            }
 
             bool hasPlayableInBatch = false;
             bool shouldGuaranteePlayable = _guaranteeAtLeastOnePlayable &&
                                           (context.RuntimeConfig == null || context.RuntimeConfig.PreferPlayableBatch);
 
+            SpawnDebugReport debugReport = _captureDebugInfo
+                ? CreateBaseDebugReport(safeCount, context, fillRate, candidatePool.Count)
+                : null;
+
             for (int i = 0; i < safeCount; i++)
             {
                 bool forcePlayable = shouldGuaranteePlayable && i == safeCount - 1 && !hasPlayableInBatch;
-                SpawnCandidate selected = PickCandidate(candidatePool, context, fillRate, batchShapeIds, forcePlayable);
+                List<SpawnCandidate> candidates = BuildCandidates(candidatePool, context, fillRate, batchShapeIds, forcePlayable);
+
+                if (candidates.Count == 0 && forcePlayable)
+                    candidates = BuildCandidates(candidatePool, context, fillRate, batchShapeIds, false);
+
+                if (debugReport != null)
+                    AppendDebugCandidates(debugReport, candidates, forcePlayable, _maxDebugCandidates);
+
+                SpawnCandidate selected = PickCandidate(candidates);
 
                 if (selected.ShapeData == null)
                     continue;
@@ -162,6 +192,16 @@ namespace _Game.Scripts.Logic
                     batchShapeIds.Add(id);
                     RememberShape(id);
                 }
+
+                if (debugReport != null)
+                    debugReport.Selected.Add(ToDebugCandidate(selected, selected: true, forcePlayable));
+            }
+
+            if (debugReport != null)
+            {
+                debugReport.CandidateCount = debugReport.Candidates.Count;
+                debugReport.Summary = $"Selected {debugReport.Selected.Count}/{safeCount}. Filtered pool: {debugReport.FilteredPoolCount}. Candidates shown: {debugReport.Candidates.Count}.";
+                _lastDebugReport = debugReport;
             }
 
             return result;
@@ -174,7 +214,12 @@ namespace _Game.Scripts.Logic
             if (candidates.Count == 0 && forcePlayable)
                 candidates = BuildCandidates(pool, context, fillRate, batchShapeIds, false);
 
-            if (candidates.Count == 0)
+            return PickCandidate(candidates);
+        }
+
+        private SpawnCandidate PickCandidate(List<SpawnCandidate> candidates)
+        {
+            if (candidates == null || candidates.Count == 0)
                 return default;
 
             float totalWeight = 0f;
@@ -660,6 +705,117 @@ namespace _Game.Scripts.Logic
                 int j = UnityEngine.Random.Range(0, i + 1);
                 (list[i], list[j]) = (list[j], list[i]);
             }
+        }
+        #endregion
+
+
+        #region Debug Helpers
+        private SpawnDebugReport BuildDebugReportInternal(int count, SpawnSelectionContext context, float fillRate, int maxCandidates, bool mutateRuntimeState)
+        {
+            int safeCount = Mathf.Max(1, count);
+            List<BlockData> candidatePool = BuildFilteredPool(context);
+            SpawnDebugReport report = CreateBaseDebugReport(safeCount, context, fillRate, candidatePool.Count);
+            HashSet<string> batchShapeIds = new HashSet<string>();
+            bool hasPlayableInBatch = false;
+            bool shouldGuaranteePlayable = _guaranteeAtLeastOnePlayable &&
+                                          (context.RuntimeConfig == null || context.RuntimeConfig.PreferPlayableBatch);
+
+            if (candidatePool.Count == 0)
+            {
+                report.Summary = "No candidates after filters.";
+                return report;
+            }
+
+            for (int i = 0; i < safeCount; i++)
+            {
+                bool forcePlayable = shouldGuaranteePlayable && i == safeCount - 1 && !hasPlayableInBatch;
+                List<SpawnCandidate> candidates = BuildCandidates(candidatePool, context, fillRate, batchShapeIds, forcePlayable);
+
+                if (candidates.Count == 0 && forcePlayable)
+                    candidates = BuildCandidates(candidatePool, context, fillRate, batchShapeIds, false);
+
+                AppendDebugCandidates(report, candidates, forcePlayable, maxCandidates);
+                SpawnCandidate selected = PickCandidate(candidates);
+
+                if (selected.ShapeData == null)
+                    continue;
+
+                report.Selected.Add(ToDebugCandidate(selected, selected: true, forcePlayable));
+
+                if (selected.FitCount > 0)
+                    hasPlayableInBatch = true;
+
+                string id = GetBlockId(selected.ShapeData);
+                if (!string.IsNullOrEmpty(id))
+                {
+                    batchShapeIds.Add(id);
+                    if (mutateRuntimeState)
+                        RememberShape(id);
+                }
+            }
+
+            report.CandidateCount = report.Candidates.Count;
+            report.Summary = $"Selected {report.Selected.Count}/{safeCount}. Filtered pool: {report.FilteredPoolCount}. Candidates shown: {report.Candidates.Count}.";
+            return report;
+        }
+
+        private SpawnDebugReport CreateBaseDebugReport(int count, SpawnSelectionContext context, float fillRate, int filteredPoolCount)
+        {
+            return new SpawnDebugReport
+            {
+                RequestedCount = Mathf.Max(1, count),
+                FillRate = fillRate,
+                RawPoolCount = BuildRawPool().Count,
+                FilteredPoolCount = filteredPoolCount,
+                ForcePlayable = _guaranteeAtLeastOnePlayable && (context.RuntimeConfig == null || context.RuntimeConfig.PreferPlayableBatch),
+                Summary = string.Empty
+            };
+        }
+
+        private SpawnDebugReport BuildEmptyDebugReport(int count, SpawnSelectionContext context, float fillRate, string summary)
+        {
+            SpawnDebugReport report = CreateBaseDebugReport(count, context, fillRate, 0);
+            report.Summary = summary;
+            return report;
+        }
+
+        private void AppendDebugCandidates(SpawnDebugReport report, List<SpawnCandidate> candidates, bool forcePlayable, int maxCandidates)
+        {
+            if (report == null || candidates == null || candidates.Count == 0)
+                return;
+
+            candidates.Sort((a, b) => b.Weight.CompareTo(a.Weight));
+
+            int remaining = Mathf.Max(0, maxCandidates - report.Candidates.Count);
+            int count = Mathf.Min(remaining, candidates.Count);
+            for (int i = 0; i < count; i++)
+                report.Candidates.Add(ToDebugCandidate(candidates[i], selected: false, forcePlayable));
+        }
+
+        private SpawnDebugCandidate ToDebugCandidate(SpawnCandidate candidate, bool selected, bool forcePlayable)
+        {
+            string shapeId = GetBlockId(candidate.ShapeData);
+            string reason;
+            if (candidate.FitCount <= 0)
+                reason = forcePlayable ? "Rejected by playable guarantee unless fallback is needed." : "Unplayable: penalty applied.";
+            else if (candidate.ClearPotential > 0)
+                reason = $"Playable. Can fit in {candidate.FitCount} positions and can clear {candidate.ClearPotential} line(s).";
+            else
+                reason = $"Playable. Can fit in {candidate.FitCount} positions.";
+
+            return new SpawnDebugCandidate
+            {
+                ShapeId = shapeId,
+                DisplayName = candidate.ShapeData != null ? candidate.ShapeData.DisplayName : string.Empty,
+                Tier = candidate.ShapeData != null ? candidate.ShapeData.tier : default,
+                RotationIndex = candidate.RotationIndex,
+                Weight = candidate.Weight,
+                FitCount = candidate.FitCount,
+                ClearPotential = candidate.ClearPotential,
+                CellCount = candidate.CellCount,
+                Selected = selected,
+                Reason = reason
+            };
         }
         #endregion
 

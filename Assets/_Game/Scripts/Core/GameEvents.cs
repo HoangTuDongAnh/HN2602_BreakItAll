@@ -36,7 +36,9 @@ namespace _Game.Scripts.Core
         public static event Action<ObjectiveProgress> OnObjectiveProgressChanged;
         public static event Action<ObjectiveProgress> OnObjectiveCompleted;
         public static event Action<ObjectiveProgress> OnObjectiveFailed;
-        public static event Action OnFillQueueChanged;
+        public static event Action OnPuzzleQueueChanged;
+        public static event Action OnPuzzleBlockSetSwitched;
+        public static event Action<bool> OnShapeOverlayToggled;
         #endregion
 
         #region Visual Effects Events
@@ -67,7 +69,12 @@ namespace _Game.Scripts.Core
         public static void RaiseObjectiveProgressChanged(ObjectiveProgress progress) => OnObjectiveProgressChanged?.Invoke(progress);
         public static void RaiseObjectiveCompleted(ObjectiveProgress progress) => OnObjectiveCompleted?.Invoke(progress);
         public static void RaiseObjectiveFailed(ObjectiveProgress progress) => OnObjectiveFailed?.Invoke(progress);
-        public static void RaiseFillQueueChanged() => OnFillQueueChanged?.Invoke();
+        public static void RaisePuzzleBlockSetSwitched() => OnPuzzleBlockSetSwitched?.Invoke();
+        public static void RaiseShapeOverlayToggled(bool visible) => OnShapeOverlayToggled?.Invoke(visible);
+        public static void RaisePuzzleQueueChanged()
+        {
+            OnPuzzleQueueChanged?.Invoke();
+        }
 
         public static void RaiseShowFloatingText(string content, Vector3 position, Color color, float scale)
         {

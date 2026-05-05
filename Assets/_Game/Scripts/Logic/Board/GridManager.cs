@@ -16,8 +16,8 @@ namespace _Game.Scripts.Logic
     /// </summary>
     public class GridManager : MonoBehaviour
     {
-        private const int FixedBoardWidth = 9;
-        private const int FixedBoardHeight = 9;
+        private const int FixedBoardWidth = LevelDefinition.FixedBoardWidth;
+        private const int FixedBoardHeight = LevelDefinition.FixedBoardHeight;
 
         #region Singleton
         public static GridManager Instance { get; private set; }
@@ -78,6 +78,7 @@ namespace _Game.Scripts.Logic
         private bool _isProcessing;
         private bool _lineResolveEnabled = true;
         private bool _targetPatternPlacementOnly;
+        private bool _targetPatternOverlayVisible = true;
         private readonly BlockPlacementService _placementService = new BlockPlacementService();
 
         private LineClearDetector _lineClearDetector;
@@ -89,6 +90,7 @@ namespace _Game.Scripts.Logic
         #region Properties
         public int Width => _width;
         public int Height => _height;
+        public bool IsTargetPatternOverlayVisible => _targetPatternOverlayVisible;
         #endregion
 
         #region Initialization
@@ -214,6 +216,56 @@ namespace _Game.Scripts.Logic
             }
 
             StartResolveRoutine();
+            return true;
+        }
+
+
+        public void ClearCellsForPuzzleReposition(IReadOnlyList<Vector2Int> coords)
+        {
+            if (coords == null) return;
+
+            ClearGhost();
+            ClearToolPreview();
+
+            for (int i = 0; i < coords.Count; i++)
+            {
+                Vector2Int coord = coords[i];
+                if (!IsValidCoordinate(coord.x, coord.y)) continue;
+
+                _gridData[coord.x, coord.y].Clear();
+                _gridViews[coord.x, coord.y].UpdateVisual();
+            }
+        }
+
+        public bool TryRestoreCellsForPuzzleReposition(IReadOnlyList<Vector2Int> coords, IReadOnlyList<CellData> sourceData, Color blockColor)
+        {
+            if (coords == null || sourceData == null) return false;
+            if (coords.Count != sourceData.Count) return false;
+
+            for (int i = 0; i < coords.Count; i++)
+            {
+                Vector2Int coord = coords[i];
+                if (!IsValidCoordinate(coord.x, coord.y)) return false;
+
+                GridCell cell = _gridData[coord.x, coord.y];
+                if (cell.IsOccupied) return false;
+                if (_targetPatternPlacementOnly && !cell.IsTargetPatternCell) return false;
+            }
+
+            _lastPlacedCells = new List<Vector2Int>(coords);
+
+            for (int i = 0; i < coords.Count; i++)
+            {
+                Vector2Int coord = coords[i];
+                CellData source = sourceData[i];
+                if (source == null || !source.isOccupied) continue;
+
+                _gridData[coord.x, coord.y].SetData(source.blockCellType);
+                _gridViews[coord.x, coord.y].Init(_gridData[coord.x, coord.y], blockColor);
+            }
+
+            GameEvents.RaiseBoardResolved(new BoardResolveResult { PlacedCells = new List<Vector2Int>(_lastPlacedCells) });
+            GameEvents.RaiseMoveCompleted(0, Vector3.zero);
             return true;
         }
 
@@ -531,6 +583,21 @@ namespace _Game.Scripts.Logic
             _targetPatternPlacementOnly = enabled;
         }
 
+        public void SetTargetPatternOverlayVisible(bool visible)
+        {
+            _targetPatternOverlayVisible = visible;
+            if (_gridViews == null) return;
+
+            for (int x = 0; x < _width; x++)
+            {
+                for (int y = 0; y < _height; y++)
+                {
+                    if (_gridViews[x, y] != null)
+                        _gridViews[x, y].SetTargetPatternOverlayVisible(visible);
+                }
+            }
+        }
+
         public bool HasTargetPatternCells()
         {
             if (_gridData == null) return false;
@@ -556,6 +623,7 @@ namespace _Game.Scripts.Logic
             ClearToolPreview();
             _lineResolveEnabled = true;
             _targetPatternPlacementOnly = false;
+            SetTargetPatternOverlayVisible(true);
 
             for (int x = 0; x < _width; x++)
             {

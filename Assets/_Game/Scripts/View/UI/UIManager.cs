@@ -1,7 +1,12 @@
 using System;
 using UnityEngine;
+using UnityEngine.UI;
 using _Game.Scripts.Core;
+using _Game.Scripts.Core.Arcade;
 using _Game.Scripts.Data;
+using _Game.Scripts.Modes.Levels;
+using _Game.Scripts.Modes.Objectives;
+using _Game.Scripts.Modes.Map;
 using _Game.Scripts.View.UI.Dialogs;
 using _Game.Scripts.View.UI.Map;
 using _Game.Scripts.View.UI.Transitions;
@@ -16,7 +21,14 @@ namespace _Game.Scripts.View.UI
         private void Awake()
         {
             if (Instance == null) Instance = this;
-            else Destroy(gameObject);
+            else
+            {
+                Destroy(gameObject);
+                return;
+            }
+
+            EnsureReferences();
+            BindButtonClickSounds();
         }
         #endregion
 
@@ -33,6 +45,8 @@ namespace _Game.Scripts.View.UI
         [Header("--- DIALOGS ---")]
         [SerializeField] private SettingsDialog _settingsDialog;
         [SerializeField] private GameOverDialog _gameOverDialog;
+        [SerializeField] private ArcadeResultDialog _arcadeResultDialog;
+        [SerializeField] private LevelPreviewDialog _levelPreviewDialog;
         [SerializeField] private MusicChangeDialog _musicChangeDialog;
         [SerializeField] private AlertDialog _alertDialog;
         [SerializeField] private GuideDialog _dialogGuide;
@@ -52,12 +66,53 @@ namespace _Game.Scripts.View.UI
 
         private void Start()
         {
+            EnsureReferences();
+            BindButtonClickSounds();
             _hasStarted = true;
             ShowHome();
         }
         
         private void OnEnable() => GameEvents.OnScoreChanged += UpdateScoreUI;
         private void OnDisable() => GameEvents.OnScoreChanged -= UpdateScoreUI;
+        #endregion
+
+        #region Reference Auto Binding
+        [ContextMenu("Auto Setup UI References")]
+        private void EnsureReferences()
+        {
+            if (_homeHUD == null)
+                _homeHUD = GetComponentInChildren<HomeHUD>(true);
+
+            if (_gameplayHUD == null)
+                _gameplayHUD = GetComponentInChildren<GameplayHUD>(true);
+
+            if (_mapScreen == null)
+                _mapScreen = GetComponentInChildren<MapScreenController>(true);
+
+            if (_arcadeResultDialog == null)
+                _arcadeResultDialog = FindComponentByName<ArcadeResultDialog>("Dialog_ArcadeResult")
+                    ?? GetComponentInChildren<ArcadeResultDialog>(true);
+
+            if (_levelPreviewDialog == null)
+                _levelPreviewDialog = FindComponentByName<LevelPreviewDialog>("Dialog_LevelPreview")
+                    ?? GetComponentInChildren<LevelPreviewDialog>(true);
+        }
+
+        private T FindComponentByName<T>(string objectName) where T : Component
+        {
+            if (string.IsNullOrEmpty(objectName)) return null;
+
+            T[] components = GetComponentsInChildren<T>(true);
+            for (int i = 0; i < components.Length; i++)
+            {
+                T component = components[i];
+                if (component != null && component.gameObject.name == objectName)
+                    return component;
+            }
+
+            return null;
+        }
+
         #endregion
 
         #region Main Screen Navigation
@@ -96,6 +151,7 @@ namespace _Game.Scripts.View.UI
             if (_currentScreen == targetScreen)
             {
                 RefreshScreen(targetScreen);
+                BindButtonClickSounds();
                 onShown?.Invoke();
                 return;
             }
@@ -144,6 +200,7 @@ namespace _Game.Scripts.View.UI
             _currentScreen = targetScreen;
             RefreshScreen(targetScreen);
             CloseAllDialogs();
+            BindButtonClickSounds();
         }
 
         private void RefreshScreen(MainScreen targetScreen)
@@ -164,25 +221,31 @@ namespace _Game.Scripts.View.UI
         public void ShowSettings()
         {
             EnablePanelContainer();
+            PlayDialogOpenSound();
             if (_settingsDialog) _settingsDialog.gameObject.SetActive(true);
             if (_dialogGuide) _dialogGuide.gameObject.SetActive(false);
             if (_musicChangeDialog) _musicChangeDialog.gameObject.SetActive(false);
+            BindButtonClickSounds();
         }
 
         public void ShowGuide()
         {
             EnablePanelContainer();
+            PlayDialogOpenSound();
             if (_dialogGuide) _dialogGuide.gameObject.SetActive(true);
             if (_settingsDialog) _settingsDialog.gameObject.SetActive(false);
             if (_musicChangeDialog) _musicChangeDialog.gameObject.SetActive(false);
+            BindButtonClickSounds();
         }
 
         public void ShowMusicChangeDialog()
         {
             EnablePanelContainer();
+            PlayDialogOpenSound();
             if (_musicChangeDialog) _musicChangeDialog.gameObject.SetActive(true);
             if (_settingsDialog) _settingsDialog.gameObject.SetActive(false);
             if (_dialogGuide) _dialogGuide.gameObject.SetActive(false);
+            BindButtonClickSounds();
         }
         
         public void ShowGameOver(int currentScore, int highScore)
@@ -194,16 +257,60 @@ namespace _Game.Scripts.View.UI
                 _gameOverDialog.Setup(currentScore, highScore);
             }
             CloseAllDialogs(exceptGameOver: true);
+            BindButtonClickSounds();
         }
 
-        public void CloseAllDialogs(bool exceptGameOver = false)
+        public void ShowLevelPreview(MapDefinition map, MapLevelNodeDefinition node)
+        {
+            if (node == null || node.Level == null)
+                return;
+
+            if (_levelPreviewDialog == null)
+            {
+                ArcadeSession.SelectLevel(map, node);
+                GameManager.Instance?.StartArcadeLevel(node.Level);
+                return;
+            }
+
+            EnablePanelContainer();
+            PlayDialogOpenSound();
+            _levelPreviewDialog.gameObject.SetActive(true);
+            _levelPreviewDialog.Setup(map, node);
+            CloseAllDialogs(exceptLevelPreview: true);
+            BindButtonClickSounds();
+        }
+
+        public void ShowArcadeResult(LevelDefinition level, ObjectiveProgress progress, bool success, int rewardCoins)
+        {
+            if (_arcadeResultDialog == null)
+            {
+                if (success)
+                    ShowArcadeMap();
+                else
+                    ShowGameOver(
+                        ScoreManager.Instance != null ? ScoreManager.Instance.CurrentScore : 0,
+                        ScoreManager.Instance != null ? ScoreManager.Instance.BestScore : 0);
+
+                return;
+            }
+
+            EnablePanelContainer();
+            _arcadeResultDialog.gameObject.SetActive(true);
+            _arcadeResultDialog.Setup(level, progress, success, rewardCoins);
+            CloseAllDialogs(exceptArcadeResult: true);
+            BindButtonClickSounds();
+        }
+
+        public void CloseAllDialogs(bool exceptGameOver = false, bool exceptArcadeResult = false, bool exceptLevelPreview = false)
         {
             if (_settingsDialog) _settingsDialog.gameObject.SetActive(false);
             if (_dialogGuide) _dialogGuide.gameObject.SetActive(false);
             if (_musicChangeDialog) _musicChangeDialog.gameObject.SetActive(false);
             if (_alertDialog) _alertDialog.gameObject.SetActive(false);
             if (!exceptGameOver && _gameOverDialog) _gameOverDialog.gameObject.SetActive(false);
-            if (!exceptGameOver && _panelContainer) _panelContainer.SetActive(false);
+            if (!exceptArcadeResult && _arcadeResultDialog) _arcadeResultDialog.gameObject.SetActive(false);
+            if (!exceptLevelPreview && _levelPreviewDialog) _levelPreviewDialog.gameObject.SetActive(false);
+            if (!exceptGameOver && !exceptArcadeResult && !exceptLevelPreview && _panelContainer) _panelContainer.SetActive(false);
         }
 
         private void EnablePanelContainer()
@@ -220,12 +327,14 @@ namespace _Game.Scripts.View.UI
         public void ShowAlertDialog(System.Action onConfirmAction)
         {
             EnablePanelContainer(); 
+            PlayDialogOpenSound();
             
             if (_alertDialog != null)
             {
                 _alertDialog.gameObject.SetActive(true);
                 _alertDialog.Setup(onConfirmAction);
                 _alertDialog.transform.SetAsLastSibling(); 
+                BindButtonClickSounds();
             }
             else
             {
@@ -239,6 +348,8 @@ namespace _Game.Scripts.View.UI
                 (_settingsDialog && _settingsDialog.gameObject.activeSelf) ||
                 (_dialogGuide && _dialogGuide.gameObject.activeSelf) ||
                 (_musicChangeDialog && _musicChangeDialog.gameObject.activeSelf) ||
+                (_arcadeResultDialog && _arcadeResultDialog.gameObject.activeSelf) ||
+                (_levelPreviewDialog && _levelPreviewDialog.gameObject.activeSelf) ||
                 (_gameOverDialog && _gameOverDialog.gameObject.activeSelf);
 
             if (!isAnyOtherDialogActive && _panelContainer)
@@ -249,6 +360,7 @@ namespace _Game.Scripts.View.UI
         #region Shared Logic
         public void OnDialogCloseClicked()
         {
+            PlayDialogCloseSound();
             CloseAllDialogs();
             if (GameManager.Instance != null && GameManager.Instance.CurrentState == GameState.Paused)
                 GameManager.Instance.ResumeGame();
@@ -266,6 +378,34 @@ namespace _Game.Scripts.View.UI
         }
 
         public void OnGuideCloseClicked() => OnDialogCloseClicked();
+
+        private void BindButtonClickSounds()
+        {
+            Button[] buttons = GetComponentsInChildren<Button>(true);
+            for (int i = 0; i < buttons.Length; i++)
+            {
+                Button button = buttons[i];
+                if (button == null) continue;
+
+                button.onClick.RemoveListener(PlayButtonClickSound);
+                button.onClick.AddListener(PlayButtonClickSound);
+            }
+        }
+
+        private void PlayButtonClickSound()
+        {
+            AudioManager.Instance?.PlayButtonClick();
+        }
+
+        private void PlayDialogOpenSound()
+        {
+            AudioManager.Instance?.PlayDialogOpen();
+        }
+
+        private void PlayDialogCloseSound()
+        {
+            AudioManager.Instance?.PlayDialogClose();
+        }
         #endregion
     }
 }

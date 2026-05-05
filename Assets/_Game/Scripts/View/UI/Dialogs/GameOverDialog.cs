@@ -18,12 +18,12 @@ namespace _Game.Scripts.View.UI.Dialogs
 
         public void OnReplayClicked()
         {
-            GameManager.Instance.StartGame();
+            GameManager.Instance?.StartGame();
         }
 
         public void OnHomeClicked()
         {
-            GameManager.Instance.EndGame();
+            GameManager.Instance?.EndGame();
         }
     }
 }

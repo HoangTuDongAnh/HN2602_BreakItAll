@@ -109,16 +109,8 @@ namespace _Game.Scripts.Core
 
         public void SaveHighScore()
         {
-            if (GameServices.Save != null)
-            {
-                GameServices.Save.SetInt("high_score", _bestScore);
-                GameServices.Save.Save();
-            }
-            else
-            {
-                PlayerPrefs.SetInt("high_score", _bestScore);
-                PlayerPrefs.Save();
-            }
+            GameSave.SetInt(SaveKeys.HighScore, _bestScore);
+            GameSave.Save();
         }
         #endregion
 
@@ -195,10 +187,7 @@ namespace _Game.Scripts.Core
 
         private void LoadHighScore()
         {
-            if (GameServices.Save != null)
-                _bestScore = GameServices.Save.GetInt("high_score", 0);
-            else
-                _bestScore = PlayerPrefs.GetInt("high_score", 0);
+            _bestScore = GameSave.GetInt(SaveKeys.HighScore, 0);
         }
 
         private void CheckHighScore()
@@ -224,7 +213,7 @@ namespace _Game.Scripts.Core
             LevelDefinition level = manager.ActiveArcadeLevel;
             if (level == null) return false;
 
-            return level.LevelType == ArcadeLevelType.Timed;
+            return level.UsesScore;
         }
 
         private void NotifyObjectiveScoreProgress()

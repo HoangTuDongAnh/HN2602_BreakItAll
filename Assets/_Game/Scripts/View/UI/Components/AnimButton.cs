@@ -26,7 +26,6 @@ namespace _Game.Scripts.View.UI.Components
         private RectTransform _rectTransform;
         private Vector3 _originalScale;
         private Vector3 _targetScale;
-        private bool _isPressed = false;
 
         private void Awake()
         {
@@ -40,7 +39,6 @@ namespace _Game.Scripts.View.UI.Components
             // Reset trạng thái mỗi khi bật lại nút
             _rectTransform.localScale = _originalScale;
             _targetScale = _originalScale;
-            _isPressed = false;
         }
 
         private void Update()
@@ -54,7 +52,6 @@ namespace _Game.Scripts.View.UI.Components
         {
             if (!Interactable()) return;
 
-            _isPressed = true;
             _targetScale = _originalScale * _pressedScale; // Thu nhỏ lại
         }
 
@@ -63,7 +60,6 @@ namespace _Game.Scripts.View.UI.Components
         {
             if (!Interactable()) return;
 
-            _isPressed = false;
             _targetScale = _originalScale; // Trả về kích thước gốc
 
             // QUAN TRỌNG: Kiểm tra xem lúc thả tay, ngón tay có còn nằm trên nút không?

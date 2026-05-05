@@ -5,9 +5,9 @@ namespace _Game.Scripts.Modes.Levels
     /// </summary>
     public enum ArcadeLevelType
     {
-        Timed = 1,
+        Score = 1,
         Collectable = 2,
         Shape = 3,
-        Fill = 4
+        Puzzle = 4
     }
 }

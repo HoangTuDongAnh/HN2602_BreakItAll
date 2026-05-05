@@ -13,119 +13,66 @@ MonoBehaviour:
   m_Name: lvl_004
   m_EditorClassIdentifier: Assembly-CSharp::_Game.Scripts.Modes.Levels.LevelDefinition
   _levelId: level_004
-  _worldId: arcade
+  _worldId: world_01
   _orderIndex: 4
-  _displayName: Fill 3x3
+  _displayName: Combo Warmup
   _boardWidth: 9
   _boardHeight: 9
   _boardCells:
-  - x: 3
-    y: 5
+  - x: 2
+    y: 2
     occupiedAtStart: 0
     occupiedCellType: 1
     occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-    itemType: 3
-    itemId: target
+    itemType: 2
+    itemId: time_bonus
     markerTag: 
-    targetPatternFilled: 1
-  - x: 5
-    y: 5
+    targetPatternFilled: 0
+  - x: 6
+    y: 6
     occupiedAtStart: 0
     occupiedCellType: 1
     occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-    itemType: 3
-    itemId: target
+    itemType: 2
+    itemId: time_bonus
     markerTag: 
-    targetPatternFilled: 1
-  - x: 4
-    y: 5
-    occupiedAtStart: 0
-    occupiedCellType: 1
-    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-    itemType: 3
-    itemId: target
-    markerTag: 
-    targetPatternFilled: 1
-  - x: 4
-    y: 4
-    occupiedAtStart: 0
-    occupiedCellType: 1
-    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-    itemType: 3
-    itemId: target
-    markerTag: 
-    targetPatternFilled: 1
-  - x: 3
-    y: 4
-    occupiedAtStart: 0
-    occupiedCellType: 1
-    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-    itemType: 3
-    itemId: target
-    markerTag: 
-    targetPatternFilled: 1
-  - x: 3
-    y: 3
-    occupiedAtStart: 0
-    occupiedCellType: 1
-    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-    itemType: 3
-    itemId: target
-    markerTag: 
-    targetPatternFilled: 1
-  - x: 5
-    y: 3
-    occupiedAtStart: 0
-    occupiedCellType: 1
-    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-    itemType: 3
-    itemId: target
-    markerTag: 
-    targetPatternFilled: 1
-  - x: 4
-    y: 3
-    occupiedAtStart: 0
-    occupiedCellType: 1
-    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-    itemType: 3
-    itemId: target
-    markerTag: 
-    targetPatternFilled: 1
-  - x: 5
-    y: 4
-    occupiedAtStart: 0
-    occupiedCellType: 1
-    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-    itemType: 3
-    itemId: target
-    markerTag: 
-    targetPatternFilled: 1
-  _levelType: 4
+    targetPatternFilled: 0
+  _levelType: 1
   _objectiveDefinition:
-    targetScore: 1000
-    bonusTimeSeconds: 5
+    targetScore: 850
+    bonusTimeSeconds: 7
     targetItemId: gem
-    targetGemCount: 5
-    targetPatternId: fill_3x3
+    targetGemCount: 1
+    targetPatternId: 
     helperToolCount: 0
     requireExactTargetShape: 1
-    providedShapeIds:
-    - square_2x2
-    - line_3
-    - domino_2
+    providedShapeIds: []
     allowRotation: 1
-    allowMovePlacedBlocks: 0
     requireUseAllProvidedShapes: 1
   _timerRule:
-    totalTimeSeconds: 90
+    totalTimeSeconds: 95
     failWhenTimeEnds: 1
     startTimerOnSessionStart: 1
   _spawnProfileOverride:
-    profileId: fill_3x3_intro
+    profileId: score_easy_02
     queueSizeOverride: 3
-    difficultyBias: 0
-    allowedShapeIds: []
+    difficultyBias: -0.2
+    allowedShapeIds:
+    - domino_2
+    - corner_small
+    - line_3
+    - square_2x2
+    - l_normal
+    - s_normal
+    - z_normal
+    - t_normal
     blockedShapeIds: []
     preferredTags: []
     blockedTags: []
+  _toolRule:
+    _useCustomRules: 0
+    _allowTools: 1
+    _allowSingleCell: 1
+    _allowRemoveSpawnBlock: 1
+    _allowBombSquare: 1
   _rewardCoins: 15

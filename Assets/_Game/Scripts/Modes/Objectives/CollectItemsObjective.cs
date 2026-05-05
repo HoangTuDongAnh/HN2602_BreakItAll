@@ -6,28 +6,32 @@ using UnityEngine;
 namespace _Game.Scripts.Modes.Objectives
 {
     /// <summary>
-    /// Collect level: gem/item nam tren board. Khi clear line chua item thi item duoc tinh la da collect.
-    /// Collect khong dung diem va khong co timer.
+    /// Collectable level: collect target board items before time runs out.
+    /// This type does not use score.
     /// </summary>
     public sealed class CollectItemsObjective : IGameObjective
     {
         #region Fields
         private readonly string _targetItemId;
         private readonly int _targetAmount;
+        private readonly bool _failWhenTimeEnds;
         private int _currentAmount;
+        private float _remainingTime;
+        private float _totalTime;
         #endregion
 
         #region State
         public ObjectiveProgress Progress => new ObjectiveProgress($"{_currentAmount}/{_targetAmount}", _currentAmount, _targetAmount, IsCompleted, IsFailed);
         public bool IsCompleted => _targetAmount > 0 && _currentAmount >= _targetAmount;
-        public bool IsFailed { get; private set; }
+        public bool IsFailed => _failWhenTimeEnds && !IsCompleted && _totalTime > 0f && _remainingTime <= 0f;
         #endregion
 
         #region Constructor
-        public CollectItemsObjective(string targetItemId, int targetAmount)
+        public CollectItemsObjective(string targetItemId, int targetAmount, bool failWhenTimeEnds)
         {
             _targetItemId = string.IsNullOrWhiteSpace(targetItemId) ? "gem" : targetItemId.Trim();
             _targetAmount = Mathf.Max(1, targetAmount);
+            _failWhenTimeEnds = failWhenTimeEnds;
         }
         #endregion
 
@@ -35,7 +39,8 @@ namespace _Game.Scripts.Modes.Objectives
         public void Initialize(ModeRuntimeContext context)
         {
             _currentAmount = 0;
-            IsFailed = false;
+            _remainingTime = 0f;
+            _totalTime = 0f;
         }
 
         public void NotifyBoardResolved(BoardResolveResult result)
@@ -57,7 +62,11 @@ namespace _Game.Scripts.Modes.Objectives
         }
 
         public void NotifyScoreChanged(int currentScore) { }
-        public void NotifyTimerUpdated(float remainingTimeSeconds, float totalTimeSeconds) { }
+        public void NotifyTimerUpdated(float remainingTimeSeconds, float totalTimeSeconds)
+        {
+            _remainingTime = remainingTimeSeconds;
+            _totalTime = totalTimeSeconds;
+        }
         #endregion
     }
 }

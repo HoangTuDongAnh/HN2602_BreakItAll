@@ -13,30 +13,67 @@ MonoBehaviour:
   m_Name: lvl_008
   m_EditorClassIdentifier: Assembly-CSharp::_Game.Scripts.Modes.Levels.LevelDefinition
   _levelId: level_008
-  _worldId: arcade
+  _worldId: world_01
   _orderIndex: 8
-  _displayName: Level 8
+  _displayName: Line Clear Run
   _boardWidth: 9
   _boardHeight: 9
-  _boardCells: []
+  _boardCells:
+  - x: 1
+    y: 4
+    occupiedAtStart: 0
+    occupiedCellType: 1
+    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    itemType: 2
+    itemId: time_bonus
+    markerTag: 
+    targetPatternFilled: 0
+  - x: 7
+    y: 4
+    occupiedAtStart: 0
+    occupiedCellType: 1
+    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    itemType: 2
+    itemId: time_bonus
+    markerTag: 
+    targetPatternFilled: 0
   _levelType: 1
   _objectiveDefinition:
-    objectiveType: 0
-    targetScore: 2000
+    targetScore: 1200
+    bonusTimeSeconds: 7
     targetItemId: gem
-    targetGemCount: 5
+    targetGemCount: 1
     targetPatternId: 
-    displayText: 
+    helperToolCount: 0
+    requireExactTargetShape: 1
+    providedShapeIds: []
+    allowRotation: 1
+    requireUseAllProvidedShapes: 1
   _timerRule:
     totalTimeSeconds: 90
     failWhenTimeEnds: 1
     startTimerOnSessionStart: 1
   _spawnProfileOverride:
-    profileId: 
+    profileId: score_medium_01
     queueSizeOverride: 3
-    difficultyBias: 0.14
-    allowedShapeIds: []
+    difficultyBias: 0.0
+    allowedShapeIds:
+    - line_3
+    - square_2x2
+    - l_normal
+    - s_normal
+    - z_normal
+    - t_normal
+    - line_4
+    - plus
+    - u
     blockedShapeIds: []
     preferredTags: []
     blockedTags: []
-  _rewardCoins: 10
+  _toolRule:
+    _useCustomRules: 0
+    _allowTools: 1
+    _allowSingleCell: 1
+    _allowRemoveSpawnBlock: 1
+    _allowBombSquare: 1
+  _rewardCoins: 20

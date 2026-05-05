@@ -13,30 +13,79 @@ MonoBehaviour:
   m_Name: lvl_005
   m_EditorClassIdentifier: Assembly-CSharp::_Game.Scripts.Modes.Levels.LevelDefinition
   _levelId: level_005
-  _worldId: arcade
+  _worldId: world_01
   _orderIndex: 5
-  _displayName: Level 5
+  _displayName: Shape Box
   _boardWidth: 9
   _boardHeight: 9
-  _boardCells: []
-  _levelType: 1
+  _boardCells:
+  - x: 3
+    y: 3
+    occupiedAtStart: 0
+    occupiedCellType: 1
+    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    itemType: 0
+    itemId: 
+    markerTag: 
+    targetPatternFilled: 1
+  - x: 4
+    y: 3
+    occupiedAtStart: 0
+    occupiedCellType: 1
+    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    itemType: 0
+    itemId: 
+    markerTag: 
+    targetPatternFilled: 1
+  - x: 3
+    y: 4
+    occupiedAtStart: 0
+    occupiedCellType: 1
+    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    itemType: 0
+    itemId: 
+    markerTag: 
+    targetPatternFilled: 1
+  - x: 4
+    y: 4
+    occupiedAtStart: 0
+    occupiedCellType: 1
+    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    itemType: 0
+    itemId: 
+    markerTag: 
+    targetPatternFilled: 1
+  _levelType: 3
   _objectiveDefinition:
-    objectiveType: 0
-    targetScore: 1400
+    targetScore: 1000
+    bonusTimeSeconds: 5
     targetItemId: gem
-    targetGemCount: 5
-    targetPatternId: 
-    displayText: 
+    targetGemCount: 1
+    targetPatternId: box_2x2
+    helperToolCount: 0
+    requireExactTargetShape: 1
+    providedShapeIds: []
+    allowRotation: 1
+    requireUseAllProvidedShapes: 1
   _timerRule:
     totalTimeSeconds: 90
     failWhenTimeEnds: 1
     startTimerOnSessionStart: 1
   _spawnProfileOverride:
-    profileId: 
+    profileId: shape_box
     queueSizeOverride: 3
-    difficultyBias: 0.08
-    allowedShapeIds: []
+    difficultyBias: -0.2
+    allowedShapeIds:
+    - square_2x2
+    - domino_2
+    - dot_1x1
     blockedShapeIds: []
     preferredTags: []
     blockedTags: []
-  _rewardCoins: 10
+  _toolRule:
+    _useCustomRules: 0
+    _allowTools: 1
+    _allowSingleCell: 1
+    _allowRemoveSpawnBlock: 1
+    _allowBombSquare: 1
+  _rewardCoins: 20

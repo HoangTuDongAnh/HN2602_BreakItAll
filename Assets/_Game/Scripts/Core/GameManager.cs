@@ -221,12 +221,20 @@ namespace _Game.Scripts.Core
 
             SetState(GameState.GameOver);
 
-            if (CurrentModeType == GameModeType.Arcade && ActiveArcadeLevel != null && !_arcadeLevelWon)
-                GameEvents.RaiseArcadeLevelFailed(ActiveArcadeLevel);
-
-            UIManager.Instance?.ShowGameOver(
-                ScoreManager.Instance != null ? ScoreManager.Instance.CurrentScore : 0,
-                ScoreManager.Instance != null ? ScoreManager.Instance.BestScore : 0);
+            bool arcadeFailure = CurrentModeType == GameModeType.Arcade && ActiveArcadeLevel != null && !_arcadeLevelWon;
+            if (arcadeFailure)
+            {
+                LevelDefinition failedLevel = ActiveArcadeLevel;
+                ObjectiveProgress failedProgress = CurrentObjectiveProgress;
+                GameEvents.RaiseArcadeLevelFailed(failedLevel);
+                UIManager.Instance?.ShowArcadeResult(failedLevel, failedProgress, success: false, rewardCoins: 0);
+            }
+            else
+            {
+                UIManager.Instance?.ShowGameOver(
+                    ScoreManager.Instance != null ? ScoreManager.Instance.CurrentScore : 0,
+                    ScoreManager.Instance != null ? ScoreManager.Instance.BestScore : 0);
+            }
 
             GameEvents.RaiseGameOver();
         }
@@ -320,9 +328,11 @@ namespace _Game.Scripts.Core
             if (CurrentModeType != GameModeType.Arcade || ActiveArcadeLevel == null) return;
 
             LevelDefinition completedLevel = ActiveArcadeLevel;
+            ObjectiveProgress completedProgress = CurrentObjectiveProgress;
             _arcadeLevelWon = true;
 
-            ArcadeProgressService.MarkLevelPassed(completedLevel);
+            bool newlyPassed = ArcadeProgressService.MarkLevelPassed(completedLevel);
+            int rewardCoins = newlyPassed ? completedLevel.RewardCoins : 0;
             GameEvents.RaiseArcadeLevelCompleted(completedLevel);
 
             SetState(GameState.Home);
@@ -331,7 +341,7 @@ namespace _Game.Scripts.Core
             ClearObjective();
             ActiveArcadeLevel = null;
             ArcadeSession.ClearSelection();
-            UIManager.Instance?.ShowArcadeMap();
+            UIManager.Instance?.ShowArcadeResult(completedLevel, completedProgress, success: true, rewardCoins: rewardCoins);
         }
         #endregion
     }

@@ -1,30 +1,35 @@
+using System;
+using _Game.Scripts.Core.Services;
 using _Game.Scripts.Modes.Levels;
 using _Game.Scripts.Modes.Map;
-using UnityEngine;
 
 namespace _Game.Scripts.Core.Arcade
 {
     /// <summary>
-    /// Lưu progress Arcade tối giản bằng PlayerPrefs.
-    /// Progress chỉ có 3 trạng thái cấp level: Locked / Unlocked / Passed.
-    /// Không dùng star rating trong phiên bản hiện tại.
+    /// Arcade progress service.
+    /// Uses the centralized save service instead of touching PlayerPrefs directly.
+    /// Progress currently has three practical states: Locked / Unlocked / Passed.
     /// </summary>
     public static class ArcadeProgressService
     {
-        #region Keys
-        private const string PassedPrefix = "arcade_level_passed_";
-        private const string LegacyCompletedPrefix = "arcade_level_completed_";
-        private const string CoinsKey = "arcade_coins";
-        #endregion
+        public static event Action<int> OnCoinsChanged;
 
         #region Query
         public static bool IsLevelPassed(LevelDefinition level)
         {
-            return level != null && (PlayerPrefs.GetInt(PassedPrefix + level.LevelId, 0) == 1 || PlayerPrefs.GetInt(LegacyCompletedPrefix + level.LevelId, 0) == 1);
+            if (level == null) return false;
+
+            return GameSave.GetInt(SaveKeys.ArcadeLevelPassedPrefix + level.LevelId, 0) == 1
+                   || GameSave.GetInt(SaveKeys.ArcadeLevelCompletedLegacyPrefix + level.LevelId, 0) == 1;
         }
 
         // Alias giữ tương thích với code cũ nếu còn nơi đang gọi Completed.
         public static bool IsLevelCompleted(LevelDefinition level) => IsLevelPassed(level);
+
+        public static int GetCoins()
+        {
+            return GameSave.GetInt(SaveKeys.ArcadeCoins, 0);
+        }
 
         public static bool IsNodeUnlocked(MapDefinition map, MapLevelNodeDefinition node)
         {
@@ -65,17 +70,41 @@ namespace _Game.Scripts.Core.Arcade
         #endregion
 
         #region Mutate
-        public static void MarkLevelPassed(LevelDefinition level)
+        public static bool MarkLevelPassed(LevelDefinition level)
         {
-            if (level == null) return;
+            if (level == null) return false;
 
             bool wasPassed = IsLevelPassed(level);
-            PlayerPrefs.SetInt(PassedPrefix + level.LevelId, 1);
+            GameSave.SetInt(SaveKeys.ArcadeLevelPassedPrefix + level.LevelId, 1);
 
             if (!wasPassed && level.RewardCoins > 0)
-                PlayerPrefs.SetInt(CoinsKey, PlayerPrefs.GetInt(CoinsKey, 0) + level.RewardCoins);
+                AddCoins(level.RewardCoins, saveImmediately: false);
 
-            PlayerPrefs.Save();
+            GameSave.Save();
+            return !wasPassed;
+        }
+
+        public static void AddCoins(int amount, bool saveImmediately = true)
+        {
+            if (amount <= 0) return;
+
+            SetCoins(GetCoins() + amount, saveImmediately);
+        }
+
+        public static void SetCoins(int amount, bool saveImmediately = true)
+        {
+            int clampedAmount = amount < 0 ? 0 : amount;
+            GameSave.SetInt(SaveKeys.ArcadeCoins, clampedAmount);
+
+            if (saveImmediately)
+                GameSave.Save();
+
+            OnCoinsChanged?.Invoke(clampedAmount);
+        }
+
+        public static void RefreshCoinsChanged()
+        {
+            OnCoinsChanged?.Invoke(GetCoins());
         }
 
         // Alias giữ tương thích tạm thời. Tham số stars bị bỏ qua.

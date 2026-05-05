@@ -13,121 +13,96 @@ MonoBehaviour:
   m_Name: lvl_003
   m_EditorClassIdentifier: Assembly-CSharp::_Game.Scripts.Modes.Levels.LevelDefinition
   _levelId: level_003
-  _worldId: arcade
+  _worldId: world_01
   _orderIndex: 3
-  _displayName: Shape Heart
+  _displayName: First Fit
   _boardWidth: 9
   _boardHeight: 9
   _boardCells:
   - x: 3
-    y: 5
+    y: 3
     occupiedAtStart: 0
     occupiedCellType: 1
     occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-    itemType: 3
-    itemId: target
-    markerTag: heart
-    targetPatternFilled: 1
-  - x: 4
-    y: 5
-    occupiedAtStart: 0
-    occupiedCellType: 1
-    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-    itemType: 3
-    itemId: target
-    markerTag: heart
-    targetPatternFilled: 1
-  - x: 5
-    y: 5
-    occupiedAtStart: 0
-    occupiedCellType: 1
-    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-    itemType: 3
-    itemId: target
-    markerTag: heart
+    itemType: 0
+    itemId: 
+    markerTag: 
     targetPatternFilled: 1
   - x: 3
     y: 4
     occupiedAtStart: 0
     occupiedCellType: 1
     occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-    itemType: 3
-    itemId: target
-    markerTag: heart
-    targetPatternFilled: 1
-  - x: 4
-    y: 4
-    occupiedAtStart: 0
-    occupiedCellType: 1
-    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-    itemType: 3
-    itemId: target
-    markerTag: heart
-    targetPatternFilled: 1
-  - x: 5
-    y: 4
-    occupiedAtStart: 0
-    occupiedCellType: 1
-    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-    itemType: 3
-    itemId: target
-    markerTag: heart
-    targetPatternFilled: 1
-  - x: 3
-    y: 3
-    occupiedAtStart: 0
-    occupiedCellType: 1
-    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-    itemType: 3
-    itemId: target
-    markerTag: heart
+    itemType: 0
+    itemId: 
+    markerTag: 
     targetPatternFilled: 1
   - x: 4
     y: 3
     occupiedAtStart: 0
     occupiedCellType: 1
     occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-    itemType: 3
-    itemId: target
-    markerTag: heart
+    itemType: 0
+    itemId: 
+    markerTag: 
+    targetPatternFilled: 1
+  - x: 4
+    y: 4
+    occupiedAtStart: 0
+    occupiedCellType: 1
+    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    itemType: 0
+    itemId: 
+    markerTag: 
     targetPatternFilled: 1
   - x: 5
     y: 3
     occupiedAtStart: 0
     occupiedCellType: 1
     occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-    itemType: 3
-    itemId: target
-    markerTag: heart
+    itemType: 0
+    itemId: 
+    markerTag: 
     targetPatternFilled: 1
-  _levelType: 3
+  - x: 5
+    y: 4
+    occupiedAtStart: 0
+    occupiedCellType: 1
+    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    itemType: 0
+    itemId: 
+    markerTag: 
+    targetPatternFilled: 1
+  _levelType: 4
   _objectiveDefinition:
     targetScore: 1000
     bonusTimeSeconds: 5
     targetItemId: gem
-    targetGemCount: 5
-    targetPatternId: heart
-    helperToolCount: 2
+    targetGemCount: 1
+    targetPatternId: puzzle
+    helperToolCount: 0
     requireExactTargetShape: 1
-    providedShapeIds: []
+    providedShapeIds:
+    - square_2x2
+    - domino_2
     allowRotation: 1
-    allowMovePlacedBlocks: 1
     requireUseAllProvidedShapes: 1
   _timerRule:
-    totalTimeSeconds: 90
+    totalTimeSeconds: 120
     failWhenTimeEnds: 1
     startTimerOnSessionStart: 1
   _spawnProfileOverride:
-    profileId: shape_heart_intro
+    profileId: puzzle_intro
     queueSizeOverride: 3
-    difficultyBias: -0.35
-    allowedShapeIds:
-    - dot_1x1
-    - domino_2
-    - corner_small
-    - line_3
-    - square_2x2
+    difficultyBias: -0.4
+    allowedShapeIds: []
     blockedShapeIds: []
     preferredTags: []
     blockedTags: []
+  _toolRule:
+    _useCustomRules: 0
+    _allowTools: 1
+    _allowSingleCell: 1
+    _allowRemoveSpawnBlock: 1
+    _allowBombSquare: 1
   _rewardCoins: 15

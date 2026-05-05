@@ -24,6 +24,9 @@ namespace _Game.Scripts.View.UI.Tools
 
         #region Runtime
         private Button _button;
+        private int _lastCount;
+        private bool _isToolAvailable = true;
+        private string _unavailableReason = string.Empty;
         #endregion
 
         #region Unity Lifecycle
@@ -42,6 +45,7 @@ namespace _Game.Scripts.View.UI.Tools
 
             ToolController.OnToolInventoryChanged += HandleInventoryChanged;
             ToolController.OnActiveToolChanged += HandleActiveToolChanged;
+            ToolController.OnToolAvailabilityChanged += HandleAvailabilityChanged;
 
             RefreshImmediate();
         }
@@ -56,6 +60,7 @@ namespace _Game.Scripts.View.UI.Tools
 
             ToolController.OnToolInventoryChanged -= HandleInventoryChanged;
             ToolController.OnActiveToolChanged -= HandleActiveToolChanged;
+            ToolController.OnToolAvailabilityChanged -= HandleAvailabilityChanged;
         }
         #endregion
 
@@ -69,7 +74,7 @@ namespace _Game.Scripts.View.UI.Tools
         private void HandleAddClicked()
         {
             if (ToolController.Instance == null) return;
-            ToolController.Instance.AddOneTool(_toolType);
+            ToolController.Instance.RequestBuyTool(_toolType);
         }
 
         private void HandleInventoryChanged(GameplayToolType toolType, int count)
@@ -83,29 +88,63 @@ namespace _Game.Scripts.View.UI.Tools
             if (_selectedHighlight != null)
                 _selectedHighlight.SetActive(activeTool == _toolType);
         }
+
+        private void HandleAvailabilityChanged(GameplayToolType toolType, bool isAvailable, string reason)
+        {
+            if (toolType != _toolType) return;
+
+            _isToolAvailable = isAvailable;
+            _unavailableReason = reason ?? string.Empty;
+            ApplyAvailability();
+        }
         #endregion
 
         #region Helpers
         private void RefreshImmediate()
         {
             if (ToolController.Instance != null)
+            {
                 ApplyCount(ToolController.Instance.GetToolCount(_toolType));
+                _isToolAvailable = ToolController.Instance.IsToolAllowed(_toolType);
+                _unavailableReason = ToolController.Instance.GetToolUnavailableReason(_toolType);
+                ApplyAvailability();
+            }
 
             if (_selectedHighlight != null && ToolController.Instance != null)
                 _selectedHighlight.SetActive(ToolController.Instance.ActiveTool == _toolType);
         }
 
+        private void ApplyAvailability()
+        {
+            if (_button != null)
+                _button.interactable = _isToolAvailable;
+
+            bool isEmpty = _lastCount <= 0;
+            if (_emptyOverlay != null)
+                _emptyOverlay.SetActive(isEmpty || !_isToolAvailable);
+
+            if (_addOneButton != null)
+                _addOneButton.gameObject.SetActive(isEmpty && _isToolAvailable);
+
+            if (_selectedHighlight != null && !_isToolAvailable)
+                _selectedHighlight.SetActive(false);
+        }
+
         private void ApplyCount(int count)
         {
+            _lastCount = count;
+
             if (_countText != null)
                 _countText.text = count.ToString();
 
             bool isEmpty = count <= 0;
             if (_emptyOverlay != null)
-                _emptyOverlay.SetActive(isEmpty);
+                _emptyOverlay.SetActive(isEmpty || !_isToolAvailable);
 
             if (_addOneButton != null)
-                _addOneButton.gameObject.SetActive(isEmpty);
+                _addOneButton.gameObject.SetActive(isEmpty && _isToolAvailable);
+
+            ApplyAvailability();
         }
         #endregion
     }

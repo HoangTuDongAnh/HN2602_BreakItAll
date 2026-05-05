@@ -44,26 +44,29 @@ namespace _Game.Scripts.Logic
 
         #region Runtime
         private readonly List<BlockController> _activeBlocks = new List<BlockController>();
-        private readonly List<BlockController> _storedToolQueueBlocks = new List<BlockController>();
-        private readonly List<FixedFillEntry> _fixedFillEntries = new List<FixedFillEntry>();
-        private readonly Dictionary<BlockController, int> _fixedFillBlockIndices = new Dictionary<BlockController, int>();
+        private readonly PuzzleBlockQueue _puzzleQueue = new PuzzleBlockQueue();
+        private readonly GameOverMoveValidator _gameOverMoveValidator = new GameOverMoveValidator();
+        private readonly ToolQueueOverrideController _toolQueueOverride = new ToolQueueOverrideController();
+        private readonly NormalBlockBatchSpawner _normalBlockBatchSpawner = new NormalBlockBatchSpawner();
+        private readonly BlockSpawnFactory _blockSpawnFactory = new BlockSpawnFactory();
         private BlockColorSelector _colorSelector;
-        private BlockController _activeToolBlock;
 
         private bool _isSpawning;
-        private bool _isToolQueueOverrideActive;
-        private bool _isFixedFillQueueActive;
-        private int _fixedFillPageStartIndex;
         private Coroutine _spawnRoutine;
         private Coroutine _gameOverValidationRoutine;
 
         public bool IsGameOver { get; private set; }
-        public bool IsFixedFillQueueActive => _isFixedFillQueueActive;
-        public int TotalFixedFillBlocks => _fixedFillEntries.Count;
-        public int UsedFixedFillBlocks => CountUsedFixedFillBlocks();
-        public int UnusedFixedFillBlockCount => Mathf.Max(0, TotalFixedFillBlocks - UsedFixedFillBlocks);
-        public int CurrentFillPage => GetFillPageCount() <= 0 ? 0 : (_fixedFillPageStartIndex / GetVisibleFillPageSize()) + 1;
-        public int TotalFillPages => GetFillPageCount();
+        public bool IsFixedFillQueueActive => _puzzleQueue.IsActive;
+        public int TotalFixedFillBlocks => _puzzleQueue.TotalBlocks;
+        public int UsedFixedFillBlocks => _puzzleQueue.UsedBlocks;
+        public int UnusedFixedFillBlockCount => _puzzleQueue.RemainingBlocks;
+        public int CurrentFillPage => CurrentPuzzleBlockSet;
+        public int TotalFillPages => TotalPuzzleBlockSets;
+        public int RemainingPuzzleBlocks => _puzzleQueue.RemainingBlocks;
+        public int CurrentPuzzleSetIndex => _puzzleQueue.CurrentSetIndex;
+        public int CurrentPuzzleBlockSet => _puzzleQueue.CurrentSetNumber;
+        public int TotalPuzzleBlockSets => _puzzleQueue.TotalSets;
+        public bool CanSwitchPuzzleBlockSet => _puzzleQueue.CanSwitchSet;
         #endregion
 
         #region Lifecycle
@@ -117,7 +120,7 @@ namespace _Game.Scripts.Logic
         public bool RemoveSpawnBlock(BlockController block, bool refillWhenQueueEmpty)
         {
             if (block == null) return false;
-            if (_isFixedFillQueueActive) return false;
+            if (_puzzleQueue.IsActive) return false;
 
             PurgeNullBlocks();
             if (!_activeBlocks.Contains(block)) return false;
@@ -139,8 +142,8 @@ namespace _Game.Scripts.Logic
         {
             if (IsGameOver) return;
             if (_isSpawning) return;
-            if (_isToolQueueOverrideActive) return;
-            if (_isFixedFillQueueActive)
+            if (_toolQueueOverride.IsActive) return;
+            if (_puzzleQueue.IsActive)
             {
                 RefreshFixedFillPageIfNeeded();
                 return;
@@ -161,58 +164,30 @@ namespace _Game.Scripts.Logic
         #region Gameplay Tool Queue Override
         public bool BeginToolBlock(GameplayToolType toolType, Color blockColor, Color previewColor)
         {
-            if (_isFixedFillQueueActive) return false;
+            if (_puzzleQueue.IsActive) return false;
             if (_isSpawning || IsGameOver) return false;
             if (_spawnSlots == null || _spawnSlots.Length == 0 || _blockPrefab == null || _cellPrefab == null) return false;
 
-            CancelActiveToolAndRestoreQueue();
-            PurgeNullBlocks();
-
-            _storedToolQueueBlocks.Clear();
-            _storedToolQueueBlocks.AddRange(_activeBlocks);
-
-            for (int i = 0; i < _storedToolQueueBlocks.Count; i++)
-            {
-                if (_storedToolQueueBlocks[i] != null)
-                    _storedToolQueueBlocks[i].gameObject.SetActive(false);
-            }
-
-            _activeBlocks.Clear();
-            _isToolQueueOverrideActive = true;
-
-            Transform middleSlot = _spawnSlots[Mathf.Clamp(_spawnSlots.Length / 2, 0, _spawnSlots.Length - 1)];
-            if (middleSlot == null)
-            {
-                RestoreStoredQueueBlocks();
-                return false;
-            }
-
-            _activeToolBlock = SpawnRuntimeOneCellBlock(middleSlot, blockColor, toolType, previewColor);
-            if (_activeToolBlock == null)
-            {
-                RestoreStoredQueueBlocks();
-                return false;
-            }
-
-            _activeBlocks.Add(_activeToolBlock);
-            return true;
+            return _toolQueueOverride.BeginToolBlock(
+                toolType,
+                blockColor,
+                previewColor,
+                _spawnSlots,
+                _activeBlocks,
+                SpawnRuntimeOneCellBlock,
+                PurgeNullBlocks,
+                DestroySpawnedBlock
+            );
         }
 
         public void CancelActiveToolAndRestoreQueue()
         {
-            if (_activeToolBlock != null)
-            {
-                _activeToolBlock.OnPlaced -= OnBlockPlaced;
-                Destroy(_activeToolBlock.gameObject);
-                _activeToolBlock = null;
-            }
-
-            RestoreStoredQueueBlocks();
+            _toolQueueOverride.CancelAndRestore(_activeBlocks, DestroySpawnedBlock);
         }
 
         public void RestoreQueueAfterToolUse()
         {
-            RestoreStoredQueueBlocks();
+            _toolQueueOverride.Restore(_activeBlocks);
             ScheduleGameOverValidation();
         }
 
@@ -220,25 +195,16 @@ namespace _Game.Scripts.Logic
         {
             if (_isSpawning || IsGameOver) return false;
 
-            CancelActiveToolAndRestoreQueue();
-            PurgeNullBlocks();
-
-            for (int i = 0; i < _activeBlocks.Count; i++)
-            {
-                if (_activeBlocks[i] != null)
-                    _activeBlocks[i].SetSpawnToolAttention(true);
-            }
-
-            return _activeBlocks.Count > 0;
+            return _toolQueueOverride.BeginRemoveToolFeedback(
+                _activeBlocks,
+                CancelActiveToolAndRestoreQueue,
+                PurgeNullBlocks
+            );
         }
 
         public void EndRemoveToolFeedback()
         {
-            for (int i = 0; i < _activeBlocks.Count; i++)
-            {
-                if (_activeBlocks[i] != null)
-                    _activeBlocks[i].SetSpawnToolAttention(false);
-            }
+            _toolQueueOverride.EndRemoveToolFeedback(_activeBlocks);
         }
         #endregion
 
@@ -247,8 +213,8 @@ namespace _Game.Scripts.Logic
         {
             if (IsGameOver) return;
             if (_isSpawning) return;
-            if (_isToolQueueOverrideActive) return;
-            if (_isFixedFillQueueActive)
+            if (_toolQueueOverride.IsActive) return;
+            if (_puzzleQueue.IsActive)
             {
                 RefreshFixedFillPageIfNeeded();
                 ScheduleGameOverValidation();
@@ -275,106 +241,56 @@ namespace _Game.Scripts.Logic
             if (delay > 0f)
                 yield return new WaitForSeconds(delay);
 
-            if (!IsGameOver && !_isToolQueueOverrideActive)
+            if (!IsGameOver && !_toolQueueOverride.IsActive)
                 SpawnBatch(runtimeConfig);
 
             _isSpawning = false;
             _spawnRoutine = null;
 
-            if (!IsGameOver && !_isToolQueueOverrideActive)
+            if (!IsGameOver && !_toolQueueOverride.IsActive)
                 ScheduleGameOverValidation();
         }
 
         private void SpawnBatch(SpawnRuntimeConfig runtimeConfig)
         {
-            if (_spawnSlots == null || _spawnSlots.Length == 0)
-            {
-                Debug.LogError("BlockSpawner: Missing spawn slots!");
-                return;
-            }
-
-            if (_spawnStrategy == null)
-            {
-                Debug.LogError("BlockSpawner: Missing spawn strategy!");
-                return;
-            }
-
-            int targetCount = Mathf.Min(runtimeConfig != null ? runtimeConfig.BatchSize : 3, _spawnSlots.Length);
-
-            BoardStateSnapshot boardSnapshot = GridManager.Instance != null
-                ? BoardStateSnapshot.FromBoardState(GridManager.Instance.GetBoardState())
-                : BoardStateSnapshot.Empty(8, 8);
-
-            var spawnContext = new SpawnSelectionContext(boardSnapshot, runtimeConfig, IsArcadeSession());
-            List<SpawnRequest> batch = _spawnStrategy.GetNextBatch(targetCount, spawnContext);
-
-            if (batch == null || batch.Count == 0)
-            {
-                Debug.LogError("BlockSpawner: Spawn strategy returned empty batch!");
-                return;
-            }
-
-            for (int i = 0; i < targetCount && i < batch.Count; i++)
-            {
-                SpawnRequest request = batch[i];
-                Transform slot = _spawnSlots[i];
-
-                if (request.ShapeData == null || slot == null) continue;
-
-                SpawnSingleBlock(slot, request, allowRuntimeRotation: false);
-            }
+            _normalBlockBatchSpawner.SpawnBatch(
+                runtimeConfig,
+                _spawnSlots,
+                _spawnStrategy,
+                IsArcadeSession(),
+                SpawnSingleBlock
+            );
         }
 
         private BlockController SpawnSingleBlock(Transform slot, SpawnRequest request, bool allowRuntimeRotation)
         {
-            Transform parentContainer = slot.parent != null ? slot.parent : slot;
+            BlockController controller = _blockSpawnFactory.SpawnBlock(
+                slot,
+                _blockPrefab,
+                _cellPrefab,
+                _colorSelector,
+                request,
+                allowRuntimeRotation,
+                OnBlockPlaced
+            );
 
-            GameObject blockObj = Instantiate(_blockPrefab, slot.position, Quaternion.identity, parentContainer);
-            blockObj.transform.position = slot.position;
-            blockObj.transform.localScale = Vector3.one;
+            if (controller != null)
+                _activeBlocks.Add(controller);
 
-            BlockController controller = blockObj.GetComponent<BlockController>();
-            if (controller == null)
-            {
-                Debug.LogError("BlockSpawner: Block prefab missing BlockController!");
-                Destroy(blockObj);
-                return null;
-            }
-
-            Color blockColor = _colorSelector != null ? _colorSelector.GetRandomColor() : Color.white;
-
-            controller.SetHome(slot);
-            controller.InitializeFromTemplate(request.ShapeData, request.RotationIndex, _cellPrefab, blockColor, allowRuntimeRotation);
-            controller.OnPlaced += OnBlockPlaced;
-
-            _activeBlocks.Add(controller);
             return controller;
         }
 
         private BlockController SpawnRuntimeOneCellBlock(Transform slot, Color blockColor, GameplayToolType toolType, Color previewColor)
         {
-            Transform parentContainer = slot.parent != null ? slot.parent : slot;
-            GameObject blockObj = Instantiate(_blockPrefab, slot.position, Quaternion.identity, parentContainer);
-            blockObj.transform.position = slot.position;
-            blockObj.transform.localScale = Vector3.one;
-
-            BlockController controller = blockObj.GetComponent<BlockController>();
-            if (controller == null)
-            {
-                Destroy(blockObj);
-                return null;
-            }
-
-            List<CellData> cells = new List<CellData>
-            {
-                new CellData { isOccupied = true, blockCellType = BlockCellType.Normal }
-            };
-
-            controller.SetHome(slot);
-            controller.Initialize(cells, 1, _cellPrefab, blockColor);
-            controller.ConfigureAsGameplayToolBlock(toolType, previewColor);
-            controller.OnPlaced += OnBlockPlaced;
-            return controller;
+            return _blockSpawnFactory.SpawnRuntimeOneCellBlock(
+                slot,
+                _blockPrefab,
+                _cellPrefab,
+                blockColor,
+                toolType,
+                previewColor,
+                OnBlockPlaced
+            );
         }
 
         private void OnBlockPlaced(BlockController block)
@@ -384,222 +300,207 @@ namespace _Game.Scripts.Logic
             block.OnPlaced -= OnBlockPlaced;
             _activeBlocks.Remove(block);
 
-            if (block == _activeToolBlock)
-                _activeToolBlock = null;
+            _toolQueueOverride.MarkToolBlockPlaced(block);
 
-            if (_fixedFillBlockIndices.TryGetValue(block, out int fixedIndex))
+            if (_puzzleQueue.TryMarkBlockUsed(block, out int fixedIndex))
             {
-                _fixedFillBlockIndices.Remove(block);
-                if (fixedIndex >= 0 && fixedIndex < _fixedFillEntries.Count)
-                    _fixedFillEntries[fixedIndex].Used = true;
-
                 RefreshFixedFillPageIfNeeded();
-                GameEvents.RaiseFillQueueChanged();
+                GameEvents.RaisePuzzleQueueChanged();
             }
         }
         #endregion
 
-        #region Fill Fixed Queue
+        #region Puzzle Queue
+        public void ShowNextPuzzleBlockSet()
+        {
+            ShowPuzzleBlockSetOffset(1);
+        }
+
         public void ShowPreviousFillPage()
         {
-            if (!_isFixedFillQueueActive) return;
-
-            int pageSize = GetVisibleFillPageSize();
-            int totalPages = GetFillPageCount();
-            if (totalPages <= 1) return;
-
-            int currentPage = Mathf.Clamp(_fixedFillPageStartIndex / pageSize, 0, totalPages - 1);
-            int nextPage = (currentPage - 1 + totalPages) % totalPages;
-            _fixedFillPageStartIndex = nextPage * pageSize;
-            SpawnFixedFillPage();
+            ShowPuzzleBlockSetOffset(-1);
         }
 
         public void ShowNextFillPage()
         {
-            if (!_isFixedFillQueueActive) return;
+            ShowPuzzleBlockSetOffset(1);
+        }
 
-            int pageSize = GetVisibleFillPageSize();
-            int totalPages = GetFillPageCount();
-            if (totalPages <= 1) return;
+        private void ShowPuzzleBlockSetOffset(int direction)
+        {
+            if (!_puzzleQueue.IsActive) return;
+            if (!_puzzleQueue.TryMoveSet(direction, excludeCurrentSet: true)) return;
 
-            int currentPage = Mathf.Clamp(_fixedFillPageStartIndex / pageSize, 0, totalPages - 1);
-            int nextPage = (currentPage + 1) % totalPages;
-            _fixedFillPageStartIndex = nextPage * pageSize;
-            SpawnFixedFillPage();
+            SpawnPuzzleQueueSet();
+            GameEvents.RaisePuzzleBlockSetSwitched();
         }
 
         private bool TryStartFixedFillQueue()
         {
-            _isFixedFillQueueActive = false;
-            _fixedFillEntries.Clear();
-            _fixedFillBlockIndices.Clear();
-            _fixedFillPageStartIndex = 0;
+            _puzzleQueue.Clear();
 
             LevelDefinition level = GameManager.Instance != null ? GameManager.Instance.ActiveArcadeLevel : null;
-            if (level == null || level.LevelType != ArcadeLevelType.Fill)
+            int setSize = GetVisiblePuzzleBlockSetSize();
+            if (!_puzzleQueue.TryInitialize(level, _spawnStrategy, setSize))
                 return false;
 
-            ObjectiveDefinition objective = level.Objective;
-            if (objective == null || objective.providedShapeIds == null || objective.providedShapeIds.Count == 0)
-                return false;
-
-            if (_spawnStrategy == null)
-            {
-                Debug.LogError("BlockSpawner: Fill level needs a SmartSpawnStrategy to resolve provided shape ids.");
-                return false;
-            }
-
-            for (int i = 0; i < objective.providedShapeIds.Count; i++)
-            {
-                string shapeId = objective.providedShapeIds[i];
-                BlockData block = _spawnStrategy.FindBlockById(shapeId);
-                if (block == null)
-                {
-                    Debug.LogWarning($"BlockSpawner: Fill shape id '{shapeId}' was not found in spawn strategy.");
-                    continue;
-                }
-
-                _fixedFillEntries.Add(new FixedFillEntry
-                {
-                    ShapeData = block,
-                    RotationIndex = 0,
-                    Used = false
-                });
-            }
-
-            if (_fixedFillEntries.Count == 0)
-                return false;
-
-            _isFixedFillQueueActive = true;
-            SpawnFixedFillPage();
+            SpawnPuzzleQueueSet();
             return true;
         }
 
-        private void SpawnFixedFillPage()
+        private void SpawnPuzzleQueueSet()
         {
-            if (!_isFixedFillQueueActive) return;
+            if (!_puzzleQueue.IsActive) return;
             if (_spawnSlots == null || _spawnSlots.Length == 0 || _blockPrefab == null || _cellPrefab == null) return;
 
             ClearVisibleBlocks();
-            _fixedFillBlockIndices.Clear();
+            _puzzleQueue.ClearVisibleBlockBindings();
 
-            int pageSize = GetVisibleFillPageSize();
-            int end = Mathf.Min(_fixedFillEntries.Count, _fixedFillPageStartIndex + pageSize);
+            _puzzleQueue.GetCurrentSetRange(out int startIndex, out int endIndex);
             int slotIndex = 0;
 
-            for (int i = _fixedFillPageStartIndex; i < end && slotIndex < _spawnSlots.Length; i++)
+            for (int i = startIndex; i < endIndex && slotIndex < _spawnSlots.Length; i++)
             {
-                FixedFillEntry entry = _fixedFillEntries[i];
-                if (entry == null || entry.Used || entry.ShapeData == null) continue;
+                if (!_puzzleQueue.TryGetSpawnRequest(i, out SpawnRequest request))
+                    continue;
 
-                SpawnRequest request = new SpawnRequest
-                {
-                    ShapeData = entry.ShapeData,
-                    RotationIndex = entry.RotationIndex
-                };
-
-                BlockController controller = SpawnSingleBlock(_spawnSlots[slotIndex], request, AllowsFillRotation());
+                BlockController controller = SpawnSingleBlock(_spawnSlots[slotIndex], request, AllowsPuzzleRotation());
                 if (controller != null)
-                    _fixedFillBlockIndices[controller] = i;
+                {
+                    _puzzleQueue.RegisterVisibleBlock(controller, i);
+                    controller.ConfigurePuzzleQueue(this, i);
+                }
 
                 slotIndex++;
             }
 
-            if (_activeBlocks.Count == 0 && HasUnusedFixedFillBlocks())
+            if (_activeBlocks.Count == 0 && _puzzleQueue.HasUnusedBlocks)
             {
-                _fixedFillPageStartIndex = FindNextPageWithUnusedBlocks(_fixedFillPageStartIndex);
-                if (_fixedFillPageStartIndex >= 0)
-                    SpawnFixedFillPage();
+                if (_puzzleQueue.TryMoveToNextSetWithUnused())
+                    SpawnPuzzleQueueSet();
                 return;
             }
 
-            GameEvents.RaiseFillQueueChanged();
+            GameEvents.RaisePuzzleQueueChanged();
+        }
+
+        public bool TryReturnPlacedPuzzleBlockToQueue(BlockController block, int fixedEntryIndex, Vector3 releaseWorldPosition, Transform preferredSlot)
+        {
+            if (!_puzzleQueue.IsActive) return false;
+            if (block == null) return false;
+            if (!IsWorldPositionInSpawnArea(releaseWorldPosition)) return false;
+
+            Transform returnSlot = ResolveReturnSlot(preferredSlot);
+            if (returnSlot == null) return false;
+            if (!_puzzleQueue.TryMarkEntryUnused(fixedEntryIndex)) return false;
+
+            block.ResetAsPuzzleQueueBlock(returnSlot);
+            block.OnPlaced -= OnBlockPlaced;
+            block.OnPlaced += OnBlockPlaced;
+
+            if (!_activeBlocks.Contains(block))
+                _activeBlocks.Add(block);
+
+            _puzzleQueue.RegisterVisibleBlock(block, fixedEntryIndex);
+            GameEvents.RaisePuzzleQueueChanged();
+            return true;
+        }
+
+        private Transform ResolveReturnSlot(Transform preferredSlot)
+        {
+            if (preferredSlot != null && IsSlotAvailable(preferredSlot))
+                return preferredSlot;
+
+            if (_spawnSlots == null) return null;
+
+            for (int i = 0; i < _spawnSlots.Length; i++)
+            {
+                Transform slot = _spawnSlots[i];
+                if (slot != null && IsSlotAvailable(slot))
+                    return slot;
+            }
+
+            return null;
+        }
+
+        private bool IsSlotAvailable(Transform slot)
+        {
+            if (slot == null) return false;
+
+            for (int i = 0; i < _activeBlocks.Count; i++)
+            {
+                BlockController active = _activeBlocks[i];
+                if (active == null) continue;
+                if (Vector2.Distance(active.transform.position, slot.position) < 0.35f)
+                    return false;
+            }
+
+            return true;
+        }
+
+        private bool IsWorldPositionInSpawnArea(Vector3 worldPosition)
+        {
+            if (_spawnSlots == null || _spawnSlots.Length == 0) return false;
+
+            bool hasAny = false;
+            Vector2 min = Vector2.zero;
+            Vector2 max = Vector2.zero;
+
+            for (int i = 0; i < _spawnSlots.Length; i++)
+            {
+                Transform slot = _spawnSlots[i];
+                if (slot == null) continue;
+
+                Vector2 pos = slot.position;
+                if (!hasAny)
+                {
+                    min = pos;
+                    max = pos;
+                    hasAny = true;
+                }
+                else
+                {
+                    min = Vector2.Min(min, pos);
+                    max = Vector2.Max(max, pos);
+                }
+            }
+
+            if (!hasAny) return false;
+
+            float paddingX = 1.5f;
+            float paddingY = 1.1f;
+            return worldPosition.x >= min.x - paddingX
+                   && worldPosition.x <= max.x + paddingX
+                   && worldPosition.y >= min.y - paddingY
+                   && worldPosition.y <= max.y + paddingY;
         }
 
         private void RefreshFixedFillPageIfNeeded()
         {
-            if (!_isFixedFillQueueActive) return;
+            if (!_puzzleQueue.IsActive) return;
 
             PurgeNullBlocks();
-            if (_activeBlocks.Count > 0 || !HasUnusedFixedFillBlocks())
+            if (_activeBlocks.Count > 0 || !_puzzleQueue.HasUnusedBlocks)
             {
-                GameEvents.RaiseFillQueueChanged();
+                GameEvents.RaisePuzzleQueueChanged();
                 return;
             }
 
-            int nextPage = FindNextPageWithUnusedBlocks(_fixedFillPageStartIndex);
-            if (nextPage >= 0)
-            {
-                _fixedFillPageStartIndex = nextPage;
-                SpawnFixedFillPage();
-            }
+            if (_puzzleQueue.TryMoveToNextSetWithUnused())
+                SpawnPuzzleQueueSet();
             else
-            {
-                GameEvents.RaiseFillQueueChanged();
-            }
+                GameEvents.RaisePuzzleQueueChanged();
         }
 
-        private int FindNextPageWithUnusedBlocks(int startIndex)
-        {
-            int pageSize = GetVisibleFillPageSize();
-            int totalPages = GetFillPageCount();
-            if (totalPages <= 0) return -1;
-
-            int currentPage = Mathf.Clamp(startIndex / pageSize, 0, totalPages - 1);
-            for (int offset = 1; offset <= totalPages; offset++)
-            {
-                int page = (currentPage + offset) % totalPages;
-                int pageStart = page * pageSize;
-                int pageEnd = Mathf.Min(_fixedFillEntries.Count, pageStart + pageSize);
-
-                for (int i = pageStart; i < pageEnd; i++)
-                {
-                    if (_fixedFillEntries[i] != null && !_fixedFillEntries[i].Used)
-                        return pageStart;
-                }
-            }
-
-            return -1;
-        }
-
-        private bool AllowsFillRotation()
+        private bool AllowsPuzzleRotation()
         {
             LevelDefinition level = GameManager.Instance != null ? GameManager.Instance.ActiveArcadeLevel : null;
             return level == null || level.Objective == null || level.Objective.allowRotation;
         }
 
-        private bool HasUnusedFixedFillBlocks()
-        {
-            for (int i = 0; i < _fixedFillEntries.Count; i++)
-            {
-                if (_fixedFillEntries[i] != null && !_fixedFillEntries[i].Used)
-                    return true;
-            }
-
-            return false;
-        }
-
-        private int CountUsedFixedFillBlocks()
-        {
-            int count = 0;
-            for (int i = 0; i < _fixedFillEntries.Count; i++)
-            {
-                if (_fixedFillEntries[i] != null && _fixedFillEntries[i].Used)
-                    count++;
-            }
-
-            return count;
-        }
-
-        private int GetVisibleFillPageSize()
+        private int GetVisiblePuzzleBlockSetSize()
         {
             return Mathf.Max(1, _spawnSlots != null && _spawnSlots.Length > 0 ? _spawnSlots.Length : 3);
-        }
-
-        private int GetFillPageCount()
-        {
-            int pageSize = GetVisibleFillPageSize();
-            return _fixedFillEntries.Count <= 0 ? 0 : Mathf.CeilToInt(_fixedFillEntries.Count / (float)pageSize);
         }
         #endregion
 
@@ -607,7 +508,8 @@ namespace _Game.Scripts.Logic
         private void ScheduleGameOverValidation()
         {
             if (IsGameOver) return;
-            if (_isToolQueueOverrideActive) return;
+            if (_toolQueueOverride.IsActive) return;
+            if (IsPuzzleArcadeSession()) return;
 
             StopGameOverValidationRoutine();
 
@@ -629,43 +531,20 @@ namespace _Game.Scripts.Logic
         private void CheckGameOverConditionImmediate()
         {
             if (IsGameOver) return;
-            if (_isToolQueueOverrideActive) return;
+            if (_toolQueueOverride.IsActive) return;
+            if (IsPuzzleArcadeSession()) return;
 
             PurgeNullBlocks();
             if (_activeBlocks.Count == 0)
             {
-                if (_isFixedFillQueueActive && !HasUnusedFixedFillBlocks())
+                if (_puzzleQueue.IsActive && !_puzzleQueue.HasUnusedBlocks)
                     TriggerGameOver();
 
                 return;
             }
 
-            if (!HasAnyValidMoveForActiveBlocks())
+            if (!_gameOverMoveValidator.HasAnyValidMoveForActiveBlocks(_activeBlocks))
                 TriggerGameOver();
-        }
-
-        private bool HasAnyValidMoveForActiveBlocks()
-        {
-            for (int i = 0; i < _activeBlocks.Count; i++)
-            {
-                BlockController block = _activeBlocks[i];
-                if (block == null) continue;
-
-                if (CanBlockFitAnywhere(block))
-                    return true;
-            }
-
-            return false;
-        }
-
-        private bool CanBlockFitAnywhere(BlockController block)
-        {
-            if (block == null) return false;
-
-            List<Vector2Int> shapeOffsets = block.GetShapeOffsets();
-            if (shapeOffsets == null || shapeOffsets.Count == 0) return false;
-
-            return GridManager.Instance != null && GridManager.Instance.CanPlaceBlockAnywhere(shapeOffsets);
         }
 
         private void TriggerGameOver()
@@ -683,7 +562,7 @@ namespace _Game.Scripts.Logic
         private void StartSpawnRoutine()
         {
             if (_spawnRoutine != null) return;
-            if (IsGameOver || _isToolQueueOverrideActive) return;
+            if (IsGameOver || _toolQueueOverride.IsActive) return;
 
             _spawnRoutine = StartCoroutine(SpawnNextBatchRoutine());
         }
@@ -721,62 +600,22 @@ namespace _Game.Scripts.Logic
         {
             return GameManager.Instance != null && GameManager.Instance.CurrentModeType == GameModeType.Arcade;
         }
+
+        private bool IsPuzzleArcadeSession()
+        {
+            GameManager manager = GameManager.Instance;
+            return manager != null
+                   && manager.CurrentModeType == GameModeType.Arcade
+                   && manager.ActiveArcadeLevel != null
+                   && manager.ActiveArcadeLevel.LevelType == ArcadeLevelType.Puzzle;
+        }
         #endregion
 
         #region Utility
-        private void RestoreStoredQueueBlocks()
-        {
-            if (!_isToolQueueOverrideActive && _storedToolQueueBlocks.Count == 0) return;
-
-            if (_activeToolBlock != null)
-            {
-                _activeToolBlock.OnPlaced -= OnBlockPlaced;
-                Destroy(_activeToolBlock.gameObject);
-                _activeToolBlock = null;
-            }
-
-            _activeBlocks.Clear();
-            for (int i = 0; i < _storedToolQueueBlocks.Count; i++)
-            {
-                BlockController block = _storedToolQueueBlocks[i];
-                if (block == null) continue;
-
-                block.gameObject.SetActive(true);
-                block.SetSpawnToolAttention(false);
-                if (!_activeBlocks.Contains(block))
-                    _activeBlocks.Add(block);
-            }
-
-            _storedToolQueueBlocks.Clear();
-            _isToolQueueOverrideActive = false;
-        }
-
         private void ClearActiveBlocks()
         {
-            ClearVisibleBlocks();
-
-            for (int i = 0; i < _storedToolQueueBlocks.Count; i++)
-            {
-                if (_storedToolQueueBlocks[i] == null) continue;
-
-                _storedToolQueueBlocks[i].OnPlaced -= OnBlockPlaced;
-                _storedToolQueueBlocks[i].SetSpawnToolAttention(false);
-                Destroy(_storedToolQueueBlocks[i].gameObject);
-            }
-
-            if (_activeToolBlock != null)
-            {
-                _activeToolBlock.OnPlaced -= OnBlockPlaced;
-                Destroy(_activeToolBlock.gameObject);
-            }
-
-            _storedToolQueueBlocks.Clear();
-            _activeToolBlock = null;
-            _isToolQueueOverrideActive = false;
-            _isFixedFillQueueActive = false;
-            _fixedFillEntries.Clear();
-            _fixedFillBlockIndices.Clear();
-            _fixedFillPageStartIndex = 0;
+            _toolQueueOverride.ClearAll(_activeBlocks, DestroySpawnedBlock);
+            _puzzleQueue.Clear();
         }
 
         private void ClearVisibleBlocks()
@@ -784,35 +623,30 @@ namespace _Game.Scripts.Logic
             for (int i = 0; i < _activeBlocks.Count; i++)
             {
                 if (_activeBlocks[i] == null) continue;
-
-                _activeBlocks[i].OnPlaced -= OnBlockPlaced;
-                _activeBlocks[i].SetSpawnToolAttention(false);
-                Destroy(_activeBlocks[i].gameObject);
+                DestroySpawnedBlock(_activeBlocks[i]);
             }
 
-            if (_activeToolBlock != null)
-            {
-                _activeToolBlock.OnPlaced -= OnBlockPlaced;
-                Destroy(_activeToolBlock.gameObject);
-            }
+            if (_toolQueueOverride.ActiveToolBlock != null)
+                DestroySpawnedBlock(_toolQueueOverride.ActiveToolBlock);
 
             _activeBlocks.Clear();
-            _activeToolBlock = null;
-            _fixedFillBlockIndices.Clear();
+            _puzzleQueue.ClearVisibleBlockBindings();
+        }
+
+        private void DestroySpawnedBlock(BlockController block)
+        {
+            if (block == null) return;
+
+            block.OnPlaced -= OnBlockPlaced;
+            block.SetSpawnToolAttention(false);
+            Destroy(block.gameObject);
         }
 
         private void PurgeNullBlocks()
         {
             _activeBlocks.RemoveAll(block => block == null);
-            _storedToolQueueBlocks.RemoveAll(block => block == null);
+            _toolQueueOverride.PurgeNullBlocks();
         }
         #endregion
-
-        private sealed class FixedFillEntry
-        {
-            public BlockData ShapeData;
-            public int RotationIndex;
-            public bool Used;
-        }
     }
 }

@@ -85,10 +85,43 @@ namespace _Game.Scripts.View.UI.Transitions
 
         public void Play(Action onMidPoint, Action onComplete)
         {
+            // The overlay is allowed to be inactive in the scene/prefab for design convenience.
+            // StartCoroutine cannot run on an inactive GameObject, so make sure the overlay
+            // is active before starting the transition routine.
+            EnsureActiveForCoroutine();
+
+            if (!isActiveAndEnabled)
+            {
+                // If a disabled parent or disabled component still prevents coroutine execution,
+                // do the screen switch immediately instead of throwing a coroutine error.
+                onMidPoint?.Invoke();
+                onComplete?.Invoke();
+                return;
+            }
+
             if (_routine != null)
                 StopCoroutine(_routine);
 
             _routine = StartCoroutine(PlayRoutine(onMidPoint, onComplete));
+        }
+
+        private void EnsureActiveForCoroutine()
+        {
+            // Activate parents too; activeSelf=true on this object is not enough if a parent is inactive.
+            Transform current = transform;
+            while (current != null)
+            {
+                if (!current.gameObject.activeSelf)
+                    current.gameObject.SetActive(true);
+
+                current = current.parent;
+            }
+
+            if (!enabled)
+                enabled = true;
+
+            if (_canvasGroup == null)
+                _canvasGroup = GetComponent<CanvasGroup>() ?? gameObject.AddComponent<CanvasGroup>();
         }
 
         public void HideImmediate()

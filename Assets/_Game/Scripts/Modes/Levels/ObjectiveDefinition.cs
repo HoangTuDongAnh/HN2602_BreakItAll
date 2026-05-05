@@ -7,10 +7,11 @@ namespace _Game.Scripts.Modes.Levels
     [Serializable]
     public class ObjectiveDefinition
     {
-        #region Time
-        [Header("Time")]
-        [Tooltip("Chi dung cho Time level. Dat target score truoc khi het gio.")]
+        #region Score
+        [Header("Score")]
+        [Tooltip("Only used by Score levels. Reach the target score before time runs out.")]
         [Min(1)] public int targetScore = 1000;
+        [Tooltip("Seconds gained for each Time Bonus item collected in timed Arcade levels.")]
         [Min(0f)] public float bonusTimeSeconds = 5f;
         #endregion
 
@@ -27,11 +28,10 @@ namespace _Game.Scripts.Modes.Levels
         public bool requireExactTargetShape = true;
         #endregion
 
-        #region Fill
-        [Header("Fill")]
+        #region Puzzle
+        [Header("Puzzle")]
         public List<string> providedShapeIds = new List<string>();
         public bool allowRotation = true;
-        public bool allowMovePlacedBlocks = true;
         public bool requireUseAllProvidedShapes = true;
         #endregion
     }

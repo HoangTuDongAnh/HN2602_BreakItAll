@@ -12,7 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cdde88c3cf346fc4c97fb150b44ad202, type: 3}
   m_Name: Map_Arcade
   m_EditorClassIdentifier: Assembly-CSharp::_Game.Scripts.Modes.Map.MapDefinition
-  _worlds: []
+  _worlds:
+  - worldId: world_01
+    displayName: Crystal Road
+    backgroundSprite: {fileID: 0}
   _nodes:
   - _nodeId: level_001
     _level: {fileID: 11400000, guid: c1a75a58994900b46a154343446421cc, type: 2}
@@ -20,37 +23,96 @@ MonoBehaviour:
     _requiredCompletedNodeIds: []
   - _nodeId: level_002
     _level: {fileID: 11400000, guid: 935404e02f656954a87b09956034257d, type: 2}
-    _anchoredPosition: {x: 0, y: 0}
-    _requiredCompletedNodeIds: []
+    _anchoredPosition: {x: 120, y: 135}
+    _requiredCompletedNodeIds:
+    - level_001
   - _nodeId: level_003
     _level: {fileID: 11400000, guid: ec8bf6062d19e484eb40ac5d3554807e, type: 2}
-    _anchoredPosition: {x: 0, y: 0}
-    _requiredCompletedNodeIds: []
+    _anchoredPosition: {x: -120, y: 270}
+    _requiredCompletedNodeIds:
+    - level_002
   - _nodeId: level_004
     _level: {fileID: 11400000, guid: 91c686a04ca04c5194ad834c65a77b75, type: 2}
-    _anchoredPosition: {x: 0, y: 0}
-    _requiredCompletedNodeIds: []
+    _anchoredPosition: {x: 80, y: 405}
+    _requiredCompletedNodeIds:
+    - level_003
   - _nodeId: level_005
     _level: {fileID: 11400000, guid: 48287ae37d3a46dda52f69c2ee15d66a, type: 2}
-    _anchoredPosition: {x: 0, y: 0}
-    _requiredCompletedNodeIds: []
+    _anchoredPosition: {x: -80, y: 540}
+    _requiredCompletedNodeIds:
+    - level_004
   - _nodeId: level_006
     _level: {fileID: 11400000, guid: 02fdc885dfb2436f8e3f9b1be96e1c93, type: 2}
-    _anchoredPosition: {x: 0, y: 0}
-    _requiredCompletedNodeIds: []
+    _anchoredPosition: {x: 0, y: 675}
+    _requiredCompletedNodeIds:
+    - level_005
   - _nodeId: level_007
     _level: {fileID: 11400000, guid: a4118db1706f429ca7e43c9d5c38102b, type: 2}
-    _anchoredPosition: {x: 0, y: 0}
-    _requiredCompletedNodeIds: []
+    _anchoredPosition: {x: 120, y: 810}
+    _requiredCompletedNodeIds:
+    - level_006
   - _nodeId: level_008
     _level: {fileID: 11400000, guid: 2d8f2763f5604667b603fa5c9743576f, type: 2}
-    _anchoredPosition: {x: 0, y: 0}
-    _requiredCompletedNodeIds: []
+    _anchoredPosition: {x: -120, y: 945}
+    _requiredCompletedNodeIds:
+    - level_007
   - _nodeId: level_009
     _level: {fileID: 11400000, guid: 52cadf516ed74766b2aa8bc6785dc503, type: 2}
-    _anchoredPosition: {x: 0, y: 0}
-    _requiredCompletedNodeIds: []
+    _anchoredPosition: {x: 80, y: 1080}
+    _requiredCompletedNodeIds:
+    - level_008
   - _nodeId: level_010
     _level: {fileID: 11400000, guid: 03005eb9498b4722b41e523b2bf6ea83, type: 2}
-    _anchoredPosition: {x: 0, y: 0}
-    _requiredCompletedNodeIds: []
+    _anchoredPosition: {x: -80, y: 1215}
+    _requiredCompletedNodeIds:
+    - level_009
+  - _nodeId: level_011
+    _level: {fileID: 11400000, guid: 5337243afab84a8d9ea7f5269a02e393, type: 2}
+    _anchoredPosition: {x: 0, y: 1350}
+    _requiredCompletedNodeIds:
+    - level_010
+  - _nodeId: level_012
+    _level: {fileID: 11400000, guid: 53b8b4a908504ec09a27ed4abb2aee11, type: 2}
+    _anchoredPosition: {x: 120, y: 1485}
+    _requiredCompletedNodeIds:
+    - level_011
+  - _nodeId: level_013
+    _level: {fileID: 11400000, guid: 0cd35e33f5ad432fa042ecd9644b5b19, type: 2}
+    _anchoredPosition: {x: -120, y: 1620}
+    _requiredCompletedNodeIds:
+    - level_012
+  - _nodeId: level_014
+    _level: {fileID: 11400000, guid: 9ee5e752a023499a80be5a350639bec4, type: 2}
+    _anchoredPosition: {x: 80, y: 1755}
+    _requiredCompletedNodeIds:
+    - level_013
+  - _nodeId: level_015
+    _level: {fileID: 11400000, guid: cf9d8e82b77c478681a33bc71b7c74e7, type: 2}
+    _anchoredPosition: {x: -80, y: 1890}
+    _requiredCompletedNodeIds:
+    - level_014
+  - _nodeId: level_016
+    _level: {fileID: 11400000, guid: 9b46b15dc8ca4e12bebe0c472178319c, type: 2}
+    _anchoredPosition: {x: 0, y: 2025}
+    _requiredCompletedNodeIds:
+    - level_015
+  - _nodeId: level_017
+    _level: {fileID: 11400000, guid: 0abe19cd2f51456ca9a6f56b3b436e57, type: 2}
+    _anchoredPosition: {x: 120, y: 2160}
+    _requiredCompletedNodeIds:
+    - level_016
+  - _nodeId: level_018
+    _level: {fileID: 11400000, guid: 49453427a60948e9ad9ec54d0ffd3a9f, type: 2}
+    _anchoredPosition: {x: -120, y: 2295}
+    _requiredCompletedNodeIds:
+    - level_017
+  - _nodeId: level_019
+    _level: {fileID: 11400000, guid: b34aec31182f43918222e6c675082bdf, type: 2}
+    _anchoredPosition: {x: 80, y: 2430}
+    _requiredCompletedNodeIds:
+    - level_018
+  - _nodeId: level_020
+    _level: {fileID: 11400000, guid: 569319de15cf481f8b21cb496aaf35a8, type: 2}
+    _anchoredPosition: {x: -80, y: 2565}
+    _requiredCompletedNodeIds:
+    - level_019

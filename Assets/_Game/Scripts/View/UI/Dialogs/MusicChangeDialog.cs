@@ -120,6 +120,8 @@ namespace _Game.Scripts.View.UI.Dialogs
         private void UpdateUI(bool animate)
         {
             if (AudioManager.Instance == null) return;
+            if (_songLabel == null) return;
+
             AudioClip clip = AudioManager.Instance.GetBGMClip(_previewIndex);
             string songName = clip != null ? clip.name : "Unknown";
 
@@ -136,6 +138,9 @@ namespace _Game.Scripts.View.UI.Dialogs
         // Hiệu ứng trượt chữ: Chữ cũ bay ra, chữ mới bay vào
         private IEnumerator SlideRoutine(int direction)
         {
+            if (_songLabel == null || _labelContainer == null)
+                yield break;
+
             float width = _labelContainer.rect.width;
             
             // Với Pivot Center (0.5, 0.5), tọa độ 0 là chính giữa
@@ -173,6 +178,9 @@ namespace _Game.Scripts.View.UI.Dialogs
         // Hiệu ứng chữ chạy (Marquee) - Đã chỉnh sửa toán học cho Pivot Center
         private IEnumerator MarqueeRoutine()
         {
+            if (_songLabel == null || _labelContainer == null)
+                yield break;
+
             // Đợi 1 frame để TextMeshPro tính toán độ rộng chính xác sau khi set text
             yield return null; 
 

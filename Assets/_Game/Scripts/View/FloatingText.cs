@@ -7,7 +7,6 @@ namespace _Game.Scripts.View
     {
         [SerializeField] private TextMeshPro _textMesh;
         [SerializeField] private float _moveSpeed = 3f;
-        [SerializeField] private float _fadeSpeed = 2f;
         [SerializeField] private float _lifeTime = 1.0f;
         [SerializeField] private float _punchScale = 1.18f;
 

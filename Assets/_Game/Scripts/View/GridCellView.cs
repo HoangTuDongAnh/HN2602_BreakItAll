@@ -20,7 +20,8 @@ namespace _Game.Scripts.View
         [SerializeField] private Color _invalidPreviewColor = new Color(1f, 0.25f, 0.25f, 0.65f);
         [SerializeField] private Color _timeBonusColor = new Color(0.2f, 0.75f, 1f, 1f);
         [SerializeField] private Color _gemColor = new Color(0.25f, 1f, 0.55f, 1f);
-        [SerializeField] private Color _targetPatternColor = new Color(1f, 0.85f, 0.25f, 1f);
+        [SerializeField] private Color _targetPatternColor = new Color(1f, 1f, 1f, 0.72f);
+        [SerializeField] private bool _forceDefaultTargetPatternColor = true;
 
         [Header("Item Marker")]
         [SerializeField] private float _itemMarkerScale = 0.38f;
@@ -36,6 +37,7 @@ namespace _Game.Scripts.View
         private GridCell _linkedData;
         private Color _themeColor = Color.white;
         private Vector3 _baseScale = Vector3.one;
+        private bool _targetPatternOverlayVisible = true;
         private static Sprite _circleSprite;
         #endregion
 
@@ -66,8 +68,8 @@ namespace _Game.Scripts.View
 
             if (_linkedData.IsOccupied)
                 _renderer.color = ResolveBlockColor(_linkedData.Type);
-            else if (_linkedData.IsTargetPatternCell)
-                _renderer.color = _targetPatternColor;
+            else if (_linkedData.IsTargetPatternCell && _targetPatternOverlayVisible)
+                _renderer.color = GetTargetPatternColor();
             else
                 _renderer.color = _emptyColor;
 
@@ -90,6 +92,12 @@ namespace _Game.Scripts.View
             transform.localScale = _baseScale;
             _renderer.color = previewColor;
             SetItemMarkerVisible(false);
+        }
+
+        public void SetTargetPatternOverlayVisible(bool visible)
+        {
+            _targetPatternOverlayVisible = visible;
+            UpdateVisual();
         }
 
         public void ShowClearPreview(Color blockColor)
@@ -181,6 +189,11 @@ namespace _Game.Scripts.View
         {
             if (_itemRenderer != null)
                 _itemRenderer.enabled = visible;
+        }
+
+        private Color GetTargetPatternColor()
+        {
+            return _forceDefaultTargetPatternColor ? new Color(1f, 1f, 1f, 0.72f) : _targetPatternColor;
         }
 
         private Color ResolveBlockColor(BlockCellType type)

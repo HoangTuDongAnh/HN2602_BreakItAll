@@ -11,7 +11,11 @@ namespace _Game.Scripts.Core
         private void Awake()
         {
             if (Instance == null) Instance = this;
-            else Destroy(gameObject);
+            else
+            {
+                Destroy(gameObject);
+                return;
+            }
         }
         #endregion
 

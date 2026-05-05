@@ -46,7 +46,7 @@ namespace _Game.Editor
         private Vector2 _leftScroll;
         private Vector2 _mapScroll;
         private Vector2 _rightScroll;
-        private bool _showSpawnProfile;
+        private bool _showSpawnProfile = true;
 
         private static readonly string[] LabelModeOptions = { "File", "Id", "Display", "Type" };
         private static readonly string[] PaintModeOptions = { "Block", "Gem", "Time", "Target", "Clear" };
@@ -261,57 +261,30 @@ namespace _Game.Editor
                     if (GUILayout.Button("Sync From File", EditorStyles.miniButtonLeft))
                         SyncIdentityFromFile(serializedLevel);
 
-                    if (GUILayout.Button("Set 9x9", EditorStyles.miniButtonRight))
-                        SetBoardSize(serializedLevel, RuntimeBoardSize, RuntimeBoardSize);
+                    if (GUILayout.Button("Normalize 9x9", EditorStyles.miniButtonRight))
+                        SetBoardSize(serializedLevel, LevelDefinition.FixedBoardWidth, LevelDefinition.FixedBoardHeight);
                 }
             }
         }
 
         private void DrawObjective(SerializedObject serializedLevel)
         {
-            DrawHeader("Level Type");
+            DrawHeader("Level Type & Objective");
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
                 SerializedProperty typeProperty = serializedLevel.FindProperty("_levelType");
                 EditorGUILayout.PropertyField(typeProperty);
 
                 SerializedProperty objective = serializedLevel.FindProperty("_objectiveDefinition");
+                if (objective != null)
+                    EditorGUILayout.PropertyField(objective, true);
+
                 SerializedProperty timer = serializedLevel.FindProperty("_timerRule");
                 ArcadeLevelType levelType = (ArcadeLevelType)typeProperty.intValue;
-
-                switch (levelType)
-                {
-                    case ArcadeLevelType.Timed:
-                        DrawPropertyIfFound(objective, "targetScore");
-                        DrawPropertyIfFound(objective, "bonusTimeSeconds");
-                        EditorGUILayout.Space(4f);
-                        EditorGUILayout.PropertyField(timer.FindPropertyRelative("totalTimeSeconds"));
-                        EditorGUILayout.PropertyField(timer.FindPropertyRelative("failWhenTimeEnds"));
-                        EditorGUILayout.PropertyField(timer.FindPropertyRelative("startTimerOnSessionStart"));
-                        break;
-
-                    case ArcadeLevelType.Collectable:
-                        DrawPropertyIfFound(objective, "targetItemId");
-                        DrawPropertyIfFound(objective, "targetGemCount");
-                        break;
-
-                    case ArcadeLevelType.Shape:
-                        DrawPropertyIfFound(objective, "targetPatternId");
-                        DrawPropertyIfFound(objective, "helperToolCount");
-                        DrawPropertyIfFound(objective, "requireExactTargetShape");
-                        break;
-
-                    case ArcadeLevelType.Fill:
-                        DrawPropertyIfFound(objective, "providedShapeIds", includeChildren: true);
-                        DrawPropertyIfFound(objective, "allowRotation");
-                        DrawPropertyIfFound(objective, "allowMovePlacedBlocks");
-                        DrawPropertyIfFound(objective, "requireUseAllProvidedShapes");
-                        break;
-
-                    default:
-                        EditorGUILayout.HelpBox("This level has an invalid type value. Pick a type above to fix it.", MessageType.Warning);
-                        break;
-                }
+                if (UsesTimer(levelType))
+                    DrawTimerRule(timer);
+                else
+                    EditorGUILayout.HelpBox("Shape levels do not use timer settings.", MessageType.None);
             }
         }
 
@@ -325,14 +298,10 @@ namespace _Game.Editor
                 SerializedProperty height = serializedLevel.FindProperty("_boardHeight");
                 SerializedProperty cells = serializedLevel.FindProperty("_boardCells");
 
-                using (new EditorGUILayout.HorizontalScope())
-                {
-                    width.intValue = EditorGUILayout.IntSlider("Width", width.intValue, 1, RuntimeBoardSize);
-                    height.intValue = EditorGUILayout.IntSlider("Height", height.intValue, 1, RuntimeBoardSize);
-                }
-
-                if (width.intValue != RuntimeBoardSize || height.intValue != RuntimeBoardSize)
-                    EditorGUILayout.HelpBox("Runtime GridManager is fixed at 9x9. Use Set 9x9 before testing this level.", MessageType.Warning);
+                width.intValue = LevelDefinition.FixedBoardWidth;
+                height.intValue = LevelDefinition.FixedBoardHeight;
+                EditorGUILayout.LabelField("Fixed Size", $"{LevelDefinition.FixedBoardWidth}x{LevelDefinition.FixedBoardHeight}");
+                EditorGUILayout.HelpBox("Board size is fixed for this project. Paint cells only inside the 9x9 board.", MessageType.Info);
 
                 using (new EditorGUILayout.HorizontalScope())
                 {
@@ -348,24 +317,37 @@ namespace _Game.Editor
                     if (GUILayout.Button("Clear Items", EditorStyles.miniButtonMid))
                         ClearItems(cells);
 
-                    if (GUILayout.Button("Heart Target", EditorStyles.miniButtonRight))
-                        StampHeartTarget(cells, width.intValue, height.intValue);
+                    if (GUILayout.Button("Heart Target", EditorStyles.miniButtonMid))
+                        StampHeartTarget(cells, LevelDefinition.FixedBoardWidth, LevelDefinition.FixedBoardHeight);
+
+                    if (GUILayout.Button("Normalize Cells", EditorStyles.miniButtonRight))
+                        SetBoardSize(serializedLevel, LevelDefinition.FixedBoardWidth, LevelDefinition.FixedBoardHeight);
                 }
 
                 EditorGUILayout.Space(8f);
-                DrawBoardGrid(cells, width.intValue, height.intValue);
+                DrawBoardGrid(cells, LevelDefinition.FixedBoardWidth, LevelDefinition.FixedBoardHeight);
                 DrawBoardSummary(cells);
             }
         }
 
         private void DrawSpawnAndRewards(SerializedObject serializedLevel)
         {
-            DrawHeader("Spawn & Rewards");
+            DrawHeader("Spawn Strategy & Rewards");
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
-                _showSpawnProfile = EditorGUILayout.Foldout(_showSpawnProfile, "Spawn Profile Override", true);
+                _showSpawnProfile = EditorGUILayout.Foldout(_showSpawnProfile, "Per-Level Spawn Strategy Override", true);
                 if (_showSpawnProfile)
+                {
+                    EditorGUILayout.HelpBox("This profile is stored on the level and overrides queue size, difficulty bias, allowed/blocked shape ids, and tag filters. The global SmartSpawnStrategy asset is configured in Arcade Designer or on the BlockSpawner.", MessageType.Info);
                     EditorGUILayout.PropertyField(serializedLevel.FindProperty("_spawnProfileOverride"), includeChildren: true);
+
+                    if (GUILayout.Button("Open Arcade Designer - Spawn Strategy"))
+                        ArcadeDesignerWindow.Open();
+                }
+
+                SerializedProperty toolRule = serializedLevel.FindProperty("_toolRule");
+                if (toolRule != null)
+                    EditorGUILayout.PropertyField(toolRule, true);
 
                 EditorGUILayout.PropertyField(serializedLevel.FindProperty("_rewardCoins"));
             }
@@ -903,7 +885,10 @@ namespace _Game.Editor
             serializedLevel.FindProperty("_displayName").stringValue = $"Level {nextIndex}";
             serializedLevel.FindProperty("_boardWidth").intValue = RuntimeBoardSize;
             serializedLevel.FindProperty("_boardHeight").intValue = RuntimeBoardSize;
-            serializedLevel.FindProperty("_levelType").intValue = (int)ArcadeLevelType.Timed;
+            serializedLevel.FindProperty("_levelType").intValue = (int)ArcadeLevelType.Score;
+            SerializedProperty spawnProfile = serializedLevel.FindProperty("_spawnProfileOverride");
+            if (spawnProfile != null)
+                spawnProfile.FindPropertyRelative("profileId").stringValue = $"level_{nextIndex:000}_spawn";
             serializedLevel.ApplyModifiedPropertiesWithoutUndo();
 
             EditorUtility.SetDirty(level);
@@ -936,6 +921,9 @@ namespace _Game.Editor
                 serializedCopy.FindProperty("_levelId").stringValue = $"level_{nextIndex:000}";
                 serializedCopy.FindProperty("_orderIndex").intValue = nextIndex;
                 serializedCopy.FindProperty("_displayName").stringValue = $"Level {nextIndex}";
+                SerializedProperty spawnProfile = serializedCopy.FindProperty("_spawnProfileOverride");
+                if (spawnProfile != null)
+                    spawnProfile.FindPropertyRelative("profileId").stringValue = $"level_{nextIndex:000}_spawn";
                 serializedCopy.ApplyModifiedPropertiesWithoutUndo();
                 EditorUtility.SetDirty(copy);
             }
@@ -1006,6 +994,23 @@ namespace _Game.Editor
             SerializedProperty property = parent != null ? parent.FindPropertyRelative(propertyName) : null;
             if (property != null)
                 EditorGUILayout.PropertyField(property, includeChildren);
+        }
+
+        private static bool UsesTimer(ArcadeLevelType levelType)
+        {
+            return levelType == ArcadeLevelType.Score
+                   || levelType == ArcadeLevelType.Collectable
+                   || levelType == ArcadeLevelType.Puzzle;
+        }
+
+        private static void DrawTimerRule(SerializedProperty timer)
+        {
+            if (timer == null) return;
+
+            EditorGUILayout.Space(4f);
+            EditorGUILayout.PropertyField(timer.FindPropertyRelative("totalTimeSeconds"));
+            EditorGUILayout.PropertyField(timer.FindPropertyRelative("failWhenTimeEnds"));
+            EditorGUILayout.PropertyField(timer.FindPropertyRelative("startTimerOnSessionStart"));
         }
 
         private static void DrawHeader(string label)

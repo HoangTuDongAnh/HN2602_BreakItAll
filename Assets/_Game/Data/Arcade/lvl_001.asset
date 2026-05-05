@@ -15,56 +15,52 @@ MonoBehaviour:
   _levelId: level_001
   _worldId: world_01
   _orderIndex: 1
-  _displayName: Level 1
+  _displayName: Starter Score
   _boardWidth: 9
   _boardHeight: 9
   _boardCells:
-  - x: 2
-    y: 3
-    occupiedAtStart: 0
-    occupiedCellType: 3
-    occupiedColor: {r: 1, g: 0.983102, b: 0, a: 0}
-    itemType: 1
-    itemId: gem
-    markerTag: 
-    targetPatternFilled: 0
-  - x: 5
+  - x: 4
     y: 4
     occupiedAtStart: 0
-    occupiedCellType: 3
-    occupiedColor: {r: 1, g: 0.983102, b: 0, a: 0}
-    itemType: 1
-    itemId: gem
+    occupiedCellType: 1
+    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    itemType: 2
+    itemId: time_bonus
     markerTag: 
     targetPatternFilled: 0
-  - x: 5
-    y: 7
-    occupiedAtStart: 0
-    occupiedCellType: 3
-    occupiedColor: {r: 1, g: 0.983102, b: 0, a: 0}
-    itemType: 1
-    itemId: gem
-    markerTag: 
-    targetPatternFilled: 0
-  _levelType: 2
+  _levelType: 1
   _objectiveDefinition:
-    objectiveType: 2
-    targetScore: 1000
+    targetScore: 500
+    bonusTimeSeconds: 6
     targetItemId: gem
-    targetGemCount: 3
+    targetGemCount: 1
     targetPatternId: 
-    displayText: Collect
+    helperToolCount: 0
+    requireExactTargetShape: 1
+    providedShapeIds: []
+    allowRotation: 1
+    requireUseAllProvidedShapes: 1
   _timerRule:
-    totalTimeSeconds: 90
+    totalTimeSeconds: 100
     failWhenTimeEnds: 1
     startTimerOnSessionStart: 1
   _spawnProfileOverride:
-    profileId: 
+    profileId: score_intro
     queueSizeOverride: 3
-    difficultyBias: 0
-    allowedShapeIds: []
+    difficultyBias: -0.35
+    allowedShapeIds:
+    - dot_1x1
+    - domino_2
+    - corner_small
+    - line_3
+    - square_2x2
     blockedShapeIds: []
     preferredTags: []
     blockedTags: []
+  _toolRule:
+    _useCustomRules: 0
+    _allowTools: 1
+    _allowSingleCell: 1
+    _allowRemoveSpawnBlock: 1
+    _allowBombSquare: 1
   _rewardCoins: 10
-  _starThresholds: 010000000200000003000000

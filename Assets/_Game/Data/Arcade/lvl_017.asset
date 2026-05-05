@@ -1,0 +1,143 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 61a2b5e2d16e43b6bd6a17a7982450e2, type: 3}
+  m_Name: lvl_017
+  m_EditorClassIdentifier: Assembly-CSharp::_Game.Scripts.Modes.Levels.LevelDefinition
+  _levelId: level_017
+  _worldId: world_01
+  _orderIndex: 17
+  _displayName: Seven Gems
+  _boardWidth: 9
+  _boardHeight: 9
+  _boardCells:
+  - x: 1
+    y: 2
+    occupiedAtStart: 0
+    occupiedCellType: 1
+    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    itemType: 1
+    itemId: gem
+    markerTag: 
+    targetPatternFilled: 0
+  - x: 3
+    y: 2
+    occupiedAtStart: 0
+    occupiedCellType: 1
+    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    itemType: 1
+    itemId: gem
+    markerTag: 
+    targetPatternFilled: 0
+  - x: 5
+    y: 2
+    occupiedAtStart: 0
+    occupiedCellType: 1
+    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    itemType: 1
+    itemId: gem
+    markerTag: 
+    targetPatternFilled: 0
+  - x: 7
+    y: 2
+    occupiedAtStart: 0
+    occupiedCellType: 1
+    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    itemType: 1
+    itemId: gem
+    markerTag: 
+    targetPatternFilled: 0
+  - x: 2
+    y: 6
+    occupiedAtStart: 0
+    occupiedCellType: 1
+    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    itemType: 1
+    itemId: gem
+    markerTag: 
+    targetPatternFilled: 0
+  - x: 4
+    y: 6
+    occupiedAtStart: 0
+    occupiedCellType: 1
+    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    itemType: 1
+    itemId: gem
+    markerTag: 
+    targetPatternFilled: 0
+  - x: 6
+    y: 6
+    occupiedAtStart: 0
+    occupiedCellType: 1
+    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    itemType: 1
+    itemId: gem
+    markerTag: 
+    targetPatternFilled: 0
+  - x: 4
+    y: 4
+    occupiedAtStart: 0
+    occupiedCellType: 1
+    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    itemType: 2
+    itemId: time_bonus
+    markerTag: 
+    targetPatternFilled: 0
+  - x: 7
+    y: 7
+    occupiedAtStart: 0
+    occupiedCellType: 1
+    occupiedColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    itemType: 2
+    itemId: time_bonus
+    markerTag: 
+    targetPatternFilled: 0
+  _levelType: 2
+  _objectiveDefinition:
+    targetScore: 1000
+    bonusTimeSeconds: 9
+    targetItemId: gem
+    targetGemCount: 7
+    targetPatternId: 
+    helperToolCount: 0
+    requireExactTargetShape: 1
+    providedShapeIds: []
+    allowRotation: 1
+    requireUseAllProvidedShapes: 1
+  _timerRule:
+    totalTimeSeconds: 85
+    failWhenTimeEnds: 1
+    startTimerOnSessionStart: 1
+  _spawnProfileOverride:
+    profileId: collect_hard_01
+    queueSizeOverride: 3
+    difficultyBias: 0.2
+    allowedShapeIds:
+    - line_3
+    - line_4
+    - line_5
+    - square_2x2
+    - square_3x3
+    - l_normal
+    - l_big
+    - t_normal
+    - plus
+    - u
+    blockedShapeIds: []
+    preferredTags: []
+    blockedTags: []
+  _toolRule:
+    _useCustomRules: 0
+    _allowTools: 1
+    _allowSingleCell: 1
+    _allowRemoveSpawnBlock: 1
+    _allowBombSquare: 1
+  _rewardCoins: 30
